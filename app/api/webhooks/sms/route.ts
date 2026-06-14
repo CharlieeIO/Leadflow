@@ -54,12 +54,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Parse body first — validateRequest needs the raw params
   const params = await parseFormBody(request)
 
-  const from = params['From']   // lead's phone (E.164)
-  const to = params['To']       // business's Twilio number (E.164)
-  const body = params['Body']   // message text
+  // Normalize phone numbers — strip spaces, ensure + prefix
+  const normalize = (n: string) => '+' + n.replace(/\s+/g, '').replace(/^\+/, '')
+
+  const from = normalize(params['From'] ?? '')  // lead's phone (E.164)
+  const to   = normalize(params['To']   ?? '')  // business's Twilio number (E.164)
+  const body = params['Body']                   // message text
   const messageSid = params['MessageSid']
 
-  if (!from || !to || body === undefined) {
+  if (!from || from === '+' || !to || to === '+' || body === undefined) {
     logger.warn('sms_webhook_missing_fields', { from, to, hasSid: !!messageSid })
     return twimlResponse(400)
   }
