@@ -4,8 +4,10 @@ import { ArrowLeft, Phone, Globe, Calendar, Tag } from 'lucide-react'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { AiPauseToggle } from '@/components/leads/ai-pause-toggle'
 import { ConversationThread } from '@/components/leads/conversation-thread'
+import { QualificationPanel } from '@/components/leads/qualification-panel'
+import { StatusSelect } from '@/components/leads/status-select'
 import { formatPhone, timeAgo, cn } from '@/lib/utils'
-import type { BusinessSettings } from '@/types'
+import type { BusinessSettings, LeadMetadata } from '@/types'
 
 const STATUS_COLORS: Record<string, string> = {
   new:        'bg-blue-50 text-blue-700',
@@ -61,6 +63,7 @@ export default async function LeadDetailPage({
     .order('created_at', { ascending: true })
 
   const displayName = lead.name ?? formatPhone(lead.phone)
+  const meta = (lead.metadata ?? {}) as LeadMetadata
 
   return (
     <div className="flex flex-col lg:flex-row gap-5 h-full min-h-0">
@@ -85,14 +88,9 @@ export default async function LeadDetailPage({
             <p className="font-medium text-slate-900 text-sm">{displayName}</p>
             <p className="text-xs text-slate-500">{formatPhone(lead.phone)}</p>
           </div>
-          <span
-            className={cn(
-              'ml-auto text-xs font-medium px-2 py-0.5 rounded-full capitalize',
-              STATUS_COLORS[lead.status] ?? 'bg-slate-100 text-slate-500',
-            )}
-          >
-            {lead.status.replace('_', ' ')}
-          </span>
+          <div className="ml-auto">
+            <StatusSelect leadId={lead.id} currentStatus={lead.status} />
+          </div>
         </div>
 
         {/* AI paused banner */}
@@ -100,6 +98,15 @@ export default async function LeadDetailPage({
           <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-5 py-2 flex items-center gap-2">
             <span className="text-xs font-medium text-amber-700">
               AI is paused — you are handling this conversation manually.
+            </span>
+          </div>
+        )}
+
+        {/* Escalation banner */}
+        {lead.status === 'escalated' && lead.escalation_reason && (
+          <div className="shrink-0 bg-red-50 border-b border-red-200 px-5 py-2">
+            <span className="text-xs font-medium text-red-700">
+              Escalated: {lead.escalation_reason}
             </span>
           </div>
         )}
@@ -156,12 +163,6 @@ export default async function LeadDetailPage({
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
           <h3 className="text-sm font-semibold text-slate-900">Details</h3>
           <div className="space-y-2 text-sm">
-            {lead.service_type && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">Service</span>
-                <span className="text-slate-700 capitalize">{lead.service_type}</span>
-              </div>
-            )}
             <div className="flex justify-between">
               <span className="text-slate-500">Language</span>
               <span className="text-slate-700 uppercase">{lead.language}</span>
@@ -178,13 +179,6 @@ export default async function LeadDetailPage({
             )}
           </div>
 
-          {lead.escalation_reason && (
-            <div className="mt-3 pt-3 border-t border-slate-100">
-              <p className="text-xs font-medium text-red-600 mb-1">Escalation reason</p>
-              <p className="text-xs text-slate-600">{lead.escalation_reason}</p>
-            </div>
-          )}
-
           {lead.message && (
             <div className="mt-3 pt-3 border-t border-slate-100">
               <p className="text-xs font-medium text-slate-500 mb-1">Initial message</p>
@@ -192,6 +186,13 @@ export default async function LeadDetailPage({
             </div>
           )}
         </div>
+
+        {/* Qualification notes + AI takeaways */}
+        <QualificationPanel
+          leadId={lead.id}
+          serviceType={lead.service_type ?? null}
+          metadata={meta}
+        />
 
         {/* AI control */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">

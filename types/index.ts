@@ -94,6 +94,8 @@ export interface BusinessSettings {
   address?: string
   hours_of_operation?: string
   booking_link?: string
+  /** Optional per-service-type Cal.com links (HVAC: AC repair, heating repair, etc.) */
+  booking_links_by_service?: Record<string, string>
   slack_webhook?: string
   language?: Language
   bilingual?: boolean
@@ -139,6 +141,11 @@ export interface LeadMetadata {
   sequence_step?: number
   notes?: string
   last_sequence_sent_at?: string
+  // AI-extracted qualification data
+  urgency?: 'urgent' | 'routine' | 'maintenance' | 'unknown'
+  address?: string
+  issue_description?: string
+  key_takeaways?: string[]
   [key: string]: unknown
 }
 

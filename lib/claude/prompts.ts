@@ -126,29 +126,49 @@ HVAC QUALIFICATION
 You are helping qualify leads for an HVAC company. Naturally gather this info:
 
 REQUIRED (get these before sending booking link):
-1. Heating issue, cooling issue, or maintenance/checkup?
-2. Urgent (not working at all) or minor issue / routine checkup?
+1. Type of issue: cooling problem, heating problem, or maintenance/checkup?
+2. Urgency: not working at all (urgent) vs minor issue / routine checkup?
 3. Address or city?
 
-BONUS (don't hold up booking):
-4. Type of system and age? (central air, heat pump, furnace, etc.)
-5. Morning or afternoon availability?
+BONUS (nice to have, don't delay booking):
+4. Type of system? (central AC, heat pump, mini-split, furnace, boiler, etc.)
+5. Approximate age of the system?
 
-FLOW: First question should be "heating or cooling?" — orient yourself fast.
-If no AC in summer or no heat in winter: treat as urgent, move faster, skip bonus questions.
-Once you have (1), (2), and (3), send the booking link immediately.
-For urgency: "That's something we need to get looked at right away."
+APPOINTMENT TYPE — use the correct booking link based on what you learn:
+- AC not cooling / AC broken / no cold air → AC REPAIR (urgent)
+- Heat not working / furnace issues / no heat → HEATING REPAIR (urgent)
+- Wants a new system installed → INSTALLATION
+- Annual tune-up / checkup / maintenance → MAINTENANCE
+- Not sure yet → use the default booking link
+
+{appointment_links}
+
+FLOW: Ask "heating or cooling?" first to orient yourself fast.
+If no AC in summer OR no heat in winter — treat as urgent, skip bonus questions, get them booked fast.
+Once you have (1), (2), and (3) — send the appropriate booking link naturally.
+
+Urgent: "That's something we need to get looked at right away — here's how to get on the schedule:"
+Maintenance: "We can definitely set that up. Here's our scheduling link:"
 `.trim(),
 
     es: `
 CALIFICACIÓN DE HVAC
 REQUERIDO (obtén esto antes de enviar el enlace):
-1. ¿Problema de calefacción, refrigeración o mantenimiento?
-2. ¿Urgente (no funciona) o revisión de rutina?
+1. ¿Problema de refrigeración, calefacción o mantenimiento?
+2. ¿Urgente (no funciona nada) o problema menor / revisión rutinaria?
 3. ¿Dirección o ciudad?
 
-BONUS: tipo y antigüedad del sistema; disponibilidad mañana/tarde.
-FLUJO: Primera pregunta "¿calefacción o refrigeración?". Si es urgente (sin A/C en verano, sin calefacción en invierno), muévete más rápido. En cuanto tengas (1), (2) y (3), envía el enlace.
+BONUS: tipo y antigüedad del sistema.
+
+TIPO DE CITA — envía el enlace correcto:
+- Sin aire frío / AC roto → REPARACIÓN AC (urgente)
+- Sin calefacción / calefacción rota → REPARACIÓN CALEFACCIÓN (urgente)
+- Instalación nueva → INSTALACIÓN
+- Revisión anual → MANTENIMIENTO
+
+{appointment_links}
+
+FLUJO: Primera pregunta "¿calefacción o refrigeración?". Si es urgente, muévete rápido. En cuanto tengas (1), (2) y (3), envía el enlace correcto.
 `.trim(),
   },
 
@@ -259,7 +279,26 @@ export function buildSystemPrompt(ctx: PromptContext): string {
 
   // New lead — add niche qualification template
   const nicheBlock = NICHE_TEMPLATES[business.niche]
-  const nicheSection = nicheBlock ? `\n\n${nicheBlock[lang]}` : ''
+  let nicheSection = nicheBlock ? `\n\n${nicheBlock[lang]}` : ''
+
+  // Replace {appointment_links} placeholder with service-type-specific booking links (HVAC etc.)
+  // If the business has booking_links_by_service configured, inject them into the template.
+  // Otherwise fall back to the single default booking_link for all appointment types.
+  if (nicheSection.includes('{appointment_links}')) {
+    const byService = settings.booking_links_by_service
+    let appointmentLinksBlock: string
+
+    if (byService && Object.keys(byService).length > 0) {
+      const lines = Object.entries(byService).map(([type, url]) => `${type}: ${url}`)
+      appointmentLinksBlock = `Booking links by service:\n${lines.join('\n')}`
+    } else if (bookingLink) {
+      appointmentLinksBlock = `Default booking link (use for all appointment types): ${bookingLink}`
+    } else {
+      appointmentLinksBlock = 'Booking link: [not configured — tell the customer someone will call them to schedule]'
+    }
+
+    nicheSection = nicheSection.replace('{appointment_links}', appointmentLinksBlock)
+  }
 
   // Business-specific custom instructions (highest priority — appended last)
   const customSection = settings.custom_instructions

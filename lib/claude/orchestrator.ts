@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import type { Business, Lead, Conversation, OrchestratorResult, Language, BusinessSettings } from '@/types'
 
 const MODEL = 'claude-sonnet-4-6'
+const EXTRACTION_MODEL = 'claude-haiku-4-5'
 const MAX_TOKENS = 300
 const TIMEOUT_MS = 10_000
 
@@ -217,7 +218,137 @@ export async function generateQualificationResponse(
       .eq('id', lead.id)
   }
 
+  // ── Step 8: Fire async extraction of key qualification data ─────────────────
+  // Non-blocking — runs in the background and updates lead metadata.
+  // SMS response is already returned above; this never adds latency.
+  void extractAndSaveLeadQualification({
+    businessId: business.id,
+    leadId: lead.id,
+    niche: business.niche,
+    conversationHistory,
+    inboundMessage,
+  })
+
   return { type: 'response', message: finalMessage, tokensUsed: promptTokens + completionTokens }
+}
+
+// ── Lead qualification extraction ────────────────────────────────────────────
+// Runs async after the main AI response — extracts structured data from the
+// conversation so it shows up in the dashboard qualification panel.
+
+async function extractAndSaveLeadQualification(params: {
+  businessId: string
+  leadId: string
+  niche: string
+  conversationHistory: Conversation[]
+  inboundMessage: string
+}): Promise<void> {
+  const { businessId, leadId, niche, conversationHistory, inboundMessage } = params
+
+  // Build a compact conversation transcript for extraction
+  const transcript = [
+    ...conversationHistory.map((m) =>
+      `${m.direction === 'inbound' ? 'Customer' : 'AI'}: ${m.body}`,
+    ),
+    `Customer: ${inboundMessage}`,
+  ].join('\n')
+
+  // Niche-aware service types
+  const serviceTypeOptions =
+    niche === 'hvac'
+      ? '"AC repair", "heating repair", "AC installation", "heating installation", "maintenance", "other", or "unknown"'
+      : niche === 'roofing'
+      ? '"repair", "replacement", "inspection", "storm damage", "other", or "unknown"'
+      : niche === 'medspa'
+      ? '"botox", "filler", "laser", "facial", "body contouring", "other", or "unknown"'
+      : '"repair", "installation", "maintenance", "consultation", "other", or "unknown"'
+
+  const prompt = `Extract key qualification info from this service business lead conversation.
+
+TRANSCRIPT:
+${transcript}
+
+Return ONLY valid JSON — no explanation, no markdown, just the JSON object:
+{
+  "service_type": ${serviceTypeOptions},
+  "urgency": "urgent" | "routine" | "maintenance" | "unknown",
+  "address": "street address or city if mentioned, or null",
+  "issue_description": "one sentence describing what the customer needs, or null",
+  "key_takeaways": ["fact 1", "fact 2", "fact 3"]
+}
+
+Rules:
+- Only include confirmed facts from the conversation — no guesses
+- key_takeaways max 3 items, each under 80 characters
+- Set unknown/null for anything not mentioned
+- Return only JSON, nothing else`
+
+  try {
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      timeout: 8_000,
+    })
+
+    const response = await client.messages.create({
+      model: EXTRACTION_MODEL,
+      max_tokens: 250,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const textBlock = response.content.find((b) => b.type === 'text')
+    if (!textBlock || textBlock.type !== 'text') return
+
+    // Strip any accidental markdown fences
+    const raw = textBlock.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const extracted = JSON.parse(raw) as {
+      service_type?: string
+      urgency?: string
+      address?: string | null
+      issue_description?: string | null
+      key_takeaways?: string[]
+    }
+
+    const supabase = getSupabaseServiceClient()
+
+    // Merge with existing metadata (don't overwrite user-set notes)
+    const { data: currentLead } = await supabase
+      .from('leads')
+      .select('metadata, service_type')
+      .eq('id', leadId)
+      .maybeSingle()
+
+    const existingMeta = (currentLead?.metadata ?? {}) as Record<string, unknown>
+
+    const newMeta: Record<string, unknown> = { ...existingMeta }
+    if (extracted.urgency && extracted.urgency !== 'unknown') newMeta.urgency = extracted.urgency
+    if (extracted.address) newMeta.address = extracted.address
+    if (extracted.issue_description) newMeta.issue_description = extracted.issue_description
+    if (extracted.key_takeaways?.length) newMeta.key_takeaways = extracted.key_takeaways
+
+    const update: Record<string, unknown> = { metadata: newMeta }
+
+    // Also update the service_type top-level column if we have a real value
+    if (extracted.service_type && extracted.service_type !== 'unknown') {
+      update.service_type = extracted.service_type
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase.from('leads').update(update as any).eq('id', leadId)
+
+    logger.info('lead_qualification_extracted', {
+      business_id: businessId,
+      lead_id: leadId,
+      service_type: extracted.service_type,
+      urgency: extracted.urgency,
+    })
+  } catch (err) {
+    // Extraction failure is non-critical — swallow silently
+    logger.error('lead_extraction_failed', {
+      business_id: businessId,
+      lead_id: leadId,
+      error: String(err),
+    })
+  }
 }
 
 async function logAiInteraction(params: {

@@ -4,8 +4,10 @@ import { sendSMS } from '@/lib/twilio/sender'
 import { validateCalSignature, type CalWebhookPayload, type CalAttendee } from '@/lib/cal/client'
 import { notifyOwner } from '@/lib/notifications/owner'
 import { fireCrmWebhook } from '@/lib/crm/outbound'
+import { getResend } from '@/lib/resend/client'
+import { bookingSummaryHtml } from '@/lib/resend/templates'
 import { logger } from '@/lib/logger'
-import type { Business, Lead } from '@/types'
+import type { Business, Lead, BusinessSettings, LeadMetadata } from '@/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -235,6 +237,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (fullBusiness) {
       const bookedTime = formatBookingTime(payload.startTime, payload.attendees[0]?.timeZone)
+
       void notifyOwner({
         business: fullBusiness as Business,
         lead: resolvedLead,
@@ -242,11 +245,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         type: 'booking',
         context: { time: bookedTime },
       })
+
       void fireCrmWebhook({
         business: fullBusiness as Business,
         lead: resolvedLead,
         event: 'lead.booked',
         data: { scheduled_at: payload.startTime, booking_time_formatted: bookedTime },
+      })
+
+      // Send conversation summary email to business owner
+      void sendBookingSummaryEmail({
+        business: fullBusiness as Business,
+        lead: resolvedLead,
+        bookedTime,
+        supabase,
       })
     }
 
@@ -398,4 +410,71 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   return ok()
+}
+
+// ── Booking summary email ─────────────────────────────────────────────────────
+// Sends the full SMS conversation transcript to the business owner's email
+// the moment a lead books, so they know exactly what was discussed.
+
+async function sendBookingSummaryEmail(params: {
+  business: Business
+  lead: Lead
+  bookedTime: string
+  supabase: ReturnType<typeof getSupabaseServiceClient>
+}): Promise<void> {
+  const { business, lead, bookedTime, supabase } = params
+  const settings = business.settings as BusinessSettings
+
+  const notifyEmail = settings.notification_email
+  if (!notifyEmail) return // owner hasn't set an email — skip
+
+  try {
+    // Load the full conversation
+    const { data: messages } = await supabase
+      .from('conversations')
+      .select('direction, body, created_at, ai_generated')
+      .eq('lead_id', lead.id)
+      .order('created_at', { ascending: true })
+
+    const meta = (lead.metadata ?? {}) as LeadMetadata
+
+    const html = bookingSummaryHtml({
+      businessName: business.name,
+      leadName: lead.name,
+      leadPhone: lead.phone,
+      serviceType: lead.service_type ?? null,
+      urgency: (meta.urgency as string | null) ?? null,
+      address: meta.address ?? null,
+      issueDescription: meta.issue_description ?? null,
+      keyTakeaways: (meta.key_takeaways as string[] | undefined) ?? [],
+      bookedTime,
+      messages: (messages ?? []) as {
+        direction: 'inbound' | 'outbound'
+        body: string
+        created_at: string
+        ai_generated: boolean
+      }[],
+      dashboardUrl: `${process.env.NEXT_PUBLIC_URL ?? 'https://www.theleadflowautomation.com'}/dashboard/leads/${lead.id}`,
+    })
+
+    const resend = getResend()
+    await resend.emails.send({
+      from: `LeadFlow AI <notifications@${process.env.RESEND_FROM_DOMAIN ?? 'theleadflowautomation.com'}>`,
+      to: notifyEmail,
+      subject: `✅ New Booking — ${lead.name ?? lead.phone} — ${bookedTime}`,
+      html,
+    })
+
+    logger.info('booking_summary_email_sent', {
+      business_id: business.id,
+      lead_id: lead.id,
+      to: notifyEmail,
+    })
+  } catch (err) {
+    logger.error('booking_summary_email_failed', {
+      business_id: business.id,
+      lead_id: lead.id,
+      error: String(err),
+    })
+  }
 }
