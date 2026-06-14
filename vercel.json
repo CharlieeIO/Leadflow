@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "app/api/webhooks/sms/route.ts":      { "maxDuration": 30 },
+    "app/api/webhooks/voice/route.ts":    { "maxDuration": 30 },
+    "app/api/webhooks/retell/route.ts":   { "maxDuration": 30 },
+    "app/api/chat/route.ts":              { "maxDuration": 30 },
+    "app/api/cron/sequences/route.ts":    { "maxDuration": 300 },
+    "app/api/cron/reminders/route.ts":    { "maxDuration": 60 },
+    "app/api/cron/weekly-report/route.ts":{ "maxDuration": 60 },
+    "app/api/admin/businesses/route.ts":  { "maxDuration": 60 }
+  }
+}
