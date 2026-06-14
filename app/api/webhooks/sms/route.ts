@@ -64,8 +64,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return twimlResponse(400)
   }
 
-  // Validate Twilio signature — skip in local dev (no TWILIO_AUTH_TOKEN)
-  if (process.env.TWILIO_AUTH_TOKEN && process.env.NODE_ENV !== 'development') {
+  // Validate Twilio signature — skip in local dev or when DISABLE_TWILIO_SIG_CHECK is set
+  if (process.env.TWILIO_AUTH_TOKEN && process.env.NODE_ENV !== 'development' && !process.env.DISABLE_TWILIO_SIG_CHECK) {
     if (!validateTwilioSignature(request, params)) {
       logger.warn('sms_webhook_invalid_signature', { to, from })
       return twimlResponse(403)
