@@ -3,8 +3,11 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources/messages/messages
 import { checkEscalation } from './escalation'
 import { buildSystemPrompt } from './prompts'
 import { getSupabaseServiceClient } from '@/lib/supabase/server'
+import { getResend } from '@/lib/resend/client'
+import { leadBriefHtml } from '@/lib/resend/templates'
+import { fireCrmWebhook } from '@/lib/crm/outbound'
 import { logger } from '@/lib/logger'
-import type { Business, Lead, Conversation, OrchestratorResult, Language, BusinessSettings } from '@/types'
+import type { Business, Lead, Conversation, OrchestratorResult, Language, BusinessSettings, LeadMetadata } from '@/types'
 
 const MODEL = 'claude-sonnet-4-6'
 const EXTRACTION_MODEL = 'claude-haiku-4-5'
@@ -222,9 +225,8 @@ export async function generateQualificationResponse(
   // Non-blocking — runs in the background and updates lead metadata.
   // SMS response is already returned above; this never adds latency.
   void extractAndSaveLeadQualification({
-    businessId: business.id,
-    leadId: lead.id,
-    niche: business.niche,
+    business,
+    lead,
     conversationHistory,
     inboundMessage,
   })
@@ -232,18 +234,21 @@ export async function generateQualificationResponse(
   return { type: 'response', message: finalMessage, tokensUsed: promptTokens + completionTokens }
 }
 
-// ── Lead qualification extraction ────────────────────────────────────────────
-// Runs async after the main AI response — extracts structured data from the
-// conversation so it shows up in the dashboard qualification panel.
+// ── Lead qualification extraction + grading ───────────────────────────────────
+// Runs async after the main AI response. Extracts structured data, assigns a
+// letter grade, generates an AI summary, saves to the DB, fires the lead brief
+// email to the owner, and updates the CRM webhook.
 
 async function extractAndSaveLeadQualification(params: {
-  businessId: string
-  leadId: string
-  niche: string
+  business: Business
+  lead: Lead
   conversationHistory: Conversation[]
   inboundMessage: string
 }): Promise<void> {
-  const { businessId, leadId, niche, conversationHistory, inboundMessage } = params
+  const { business, lead, conversationHistory, inboundMessage } = params
+  const businessId = business.id
+  const leadId = lead.id
+  const niche = business.niche
 
   // Build a compact conversation transcript for extraction
   const transcript = [
@@ -252,6 +257,9 @@ async function extractAndSaveLeadQualification(params: {
     ),
     `Customer: ${inboundMessage}`,
   ].join('\n')
+
+  const settings = business.settings as BusinessSettings
+  const serviceArea = settings.service_area ?? 'the local area'
 
   // Niche-aware service types
   const serviceTypeOptions =
@@ -263,25 +271,35 @@ async function extractAndSaveLeadQualification(params: {
       ? '"botox", "filler", "laser", "facial", "body contouring", "other", or "unknown"'
       : '"repair", "installation", "maintenance", "consultation", "other", or "unknown"'
 
-  const prompt = `Extract key qualification info from this service business lead conversation.
+  const prompt = `You are analyzing a service business lead conversation to qualify and grade the lead.
 
-TRANSCRIPT:
+BUSINESS: ${business.name} (${niche}) — services ${serviceArea}
+
+CONVERSATION:
 ${transcript}
 
-Return ONLY valid JSON — no explanation, no markdown, just the JSON object:
+Return ONLY valid JSON — no explanation, no markdown:
 {
   "service_type": ${serviceTypeOptions},
   "urgency": "urgent" | "routine" | "maintenance" | "unknown",
   "address": "street address or city if mentioned, or null",
   "issue_description": "one sentence describing what the customer needs, or null",
-  "key_takeaways": ["fact 1", "fact 2", "fact 3"]
+  "key_takeaways": ["confirmed fact 1", "confirmed fact 2", "confirmed fact 3"],
+  "grade": "A" | "B" | "C" | "D",
+  "ai_summary": "2-3 sentences analyzing lead quality, what they need, and recommended next step"
 }
 
+GRADING CRITERIA:
+A — Urgent or clear need + address confirmed + service type identified = book immediately
+B — Good intent, mostly qualified, one detail missing (e.g. no address yet)
+C — Exploring options, low urgency, or not enough info to fully qualify yet
+D — Outside service area, very vague, price-shopping only, or low intent signals
+
 Rules:
-- Only include confirmed facts from the conversation — no guesses
-- key_takeaways max 3 items, each under 80 characters
-- Set unknown/null for anything not mentioned
-- Return only JSON, nothing else`
+- Only include CONFIRMED facts in key_takeaways (max 3, each under 80 chars)
+- Set unknown/null for anything not mentioned in the conversation
+- Grade conservatively — only give A if clearly hot
+- Return only the JSON object, nothing else`
 
   try {
     const client = new Anthropic({
@@ -291,7 +309,7 @@ Rules:
 
     const response = await client.messages.create({
       model: EXTRACTION_MODEL,
-      max_tokens: 250,
+      max_tokens: 400,
       messages: [{ role: 'user', content: prompt }],
     })
 
@@ -306,46 +324,138 @@ Rules:
       address?: string | null
       issue_description?: string | null
       key_takeaways?: string[]
+      grade?: 'A' | 'B' | 'C' | 'D'
+      ai_summary?: string | null
     }
 
     const supabase = getSupabaseServiceClient()
 
-    // Merge with existing metadata (don't overwrite user-set notes)
+    // Merge with existing metadata (preserve user-written notes)
     const { data: currentLead } = await supabase
       .from('leads')
-      .select('metadata, service_type')
+      .select('metadata, service_type, name')
       .eq('id', leadId)
       .maybeSingle()
 
-    const existingMeta = (currentLead?.metadata ?? {}) as Record<string, unknown>
+    const existingMeta = (currentLead?.metadata ?? {}) as LeadMetadata
+    const newMeta: LeadMetadata = { ...existingMeta }
 
-    const newMeta: Record<string, unknown> = { ...existingMeta }
-    if (extracted.urgency && extracted.urgency !== 'unknown') newMeta.urgency = extracted.urgency
+    if (extracted.urgency && extracted.urgency !== 'unknown') newMeta.urgency = extracted.urgency as LeadMetadata['urgency']
     if (extracted.address) newMeta.address = extracted.address
     if (extracted.issue_description) newMeta.issue_description = extracted.issue_description
     if (extracted.key_takeaways?.length) newMeta.key_takeaways = extracted.key_takeaways
+    if (extracted.grade) newMeta.grade = extracted.grade
+    if (extracted.ai_summary) newMeta.ai_summary = extracted.ai_summary
 
-    const update: Record<string, unknown> = { metadata: newMeta }
-
-    // Also update the service_type top-level column if we have a real value
     if (extracted.service_type && extracted.service_type !== 'unknown') {
-      update.service_type = extracted.service_type
+      await supabase
+        .from('leads')
+        .update({ metadata: newMeta as never, service_type: extracted.service_type })
+        .eq('id', leadId)
+    } else {
+      await supabase
+        .from('leads')
+        .update({ metadata: newMeta as never })
+        .eq('id', leadId)
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await supabase.from('leads').update(update as any).eq('id', leadId)
 
     logger.info('lead_qualification_extracted', {
       business_id: businessId,
       lead_id: leadId,
+      grade: extracted.grade,
       service_type: extracted.service_type,
       urgency: extracted.urgency,
     })
+
+    // Build a current-state lead object for downstream use
+    const updatedLead: Lead = {
+      ...lead,
+      metadata: newMeta,
+      service_type: (extracted.service_type && extracted.service_type !== 'unknown')
+        ? extracted.service_type
+        : lead.service_type,
+    }
+
+    // ── Fire lead brief email to owner (non-blocking) ─────────────────────────
+    // Only send when we have enough to say something meaningful (grade set)
+    if (extracted.grade && settings.notification_email) {
+      void sendLeadBriefEmail({
+        business,
+        lead: updatedLead,
+        meta: newMeta,
+      })
+    }
+
+    // ── Fire CRM webhook: lead.qualified ─────────────────────────────────────
+    void fireCrmWebhook({
+      business,
+      lead: updatedLead,
+      event: 'lead.qualified',
+      data: {
+        grade: extracted.grade,
+        urgency: extracted.urgency,
+        service_type: extracted.service_type,
+        issue_description: extracted.issue_description,
+        ai_summary: extracted.ai_summary,
+        key_takeaways: extracted.key_takeaways,
+      },
+    })
   } catch (err) {
-    // Extraction failure is non-critical — swallow silently
     logger.error('lead_extraction_failed', {
       business_id: businessId,
       lead_id: leadId,
+      error: String(err),
+    })
+  }
+}
+
+// ── Lead brief email ──────────────────────────────────────────────────────────
+// Sent to the business owner after qualification data is extracted.
+// Gives the owner an instant brief: who the lead is, what they need, quality grade.
+
+async function sendLeadBriefEmail(params: {
+  business: Business
+  lead: Lead
+  meta: LeadMetadata
+}): Promise<void> {
+  const { business, lead, meta } = params
+  const settings = business.settings as BusinessSettings
+  const notifyEmail = settings.notification_email
+  if (!notifyEmail) return
+
+  try {
+    const resend = getResend()
+    const dashboardUrl = `${process.env.NEXT_PUBLIC_URL ?? 'https://www.theleadflowautomation.com'}/dashboard/leads/${lead.id}`
+
+    await resend.emails.send({
+      from: `LeadFlow AI <notifications@${process.env.RESEND_FROM_DOMAIN ?? 'theleadflowautomation.com'}>`,
+      to: notifyEmail,
+      subject: `${meta.grade ? `[${meta.grade}] ` : ''}New Lead — ${lead.name ?? lead.phone} — ${business.name}`,
+      html: leadBriefHtml({
+        businessName: business.name,
+        leadName: lead.name,
+        leadPhone: lead.phone,
+        serviceType: lead.service_type ?? null,
+        urgency: meta.urgency ?? null,
+        address: meta.address ?? null,
+        issueDescription: meta.issue_description ?? null,
+        keyTakeaways: meta.key_takeaways ?? [],
+        grade: meta.grade ?? null,
+        aiSummary: meta.ai_summary ?? null,
+        dashboardUrl,
+      }),
+    })
+
+    logger.info('lead_brief_email_sent', {
+      business_id: business.id,
+      lead_id: lead.id,
+      to: notifyEmail,
+      grade: meta.grade,
+    })
+  } catch (err) {
+    logger.error('lead_brief_email_failed', {
+      business_id: business.id,
+      lead_id: lead.id,
       error: String(err),
     })
   }

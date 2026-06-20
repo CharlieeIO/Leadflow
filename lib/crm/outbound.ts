@@ -1,5 +1,5 @@
 import { logger } from '@/lib/logger'
-import type { Business, Lead, BusinessSettings } from '@/types'
+import type { Business, Lead, BusinessSettings, LeadMetadata } from '@/types'
 
 export type CrmEvent =
   | 'lead.created'
@@ -25,6 +25,16 @@ export interface CrmPayload {
     service_type: string | null
     language: string
     score: number
+    /** AI-assigned letter grade: A (hot), B (good), C (warm), D (low intent) */
+    grade: string | null
+    /** One-sentence AI summary of the lead */
+    ai_summary: string | null
+    /** Confirmed address or city mentioned in conversation */
+    address: string | null
+    /** Urgency level extracted from conversation */
+    urgency: string | null
+    /** Key facts confirmed in conversation */
+    key_takeaways: string[]
   }
   data?: Record<string, unknown>
 }
@@ -43,6 +53,8 @@ export async function fireCrmWebhook(params: {
 
   if (!url) return
 
+  const meta = (lead.metadata ?? {}) as LeadMetadata
+
   const payload: CrmPayload = {
     event,
     occurred_at: new Date().toISOString(),
@@ -60,6 +72,11 @@ export async function fireCrmWebhook(params: {
       service_type: lead.service_type,
       language: lead.language,
       score: lead.score,
+      grade: meta.grade ?? null,
+      ai_summary: meta.ai_summary ?? null,
+      address: meta.address ?? null,
+      urgency: meta.urgency ?? null,
+      key_takeaways: meta.key_takeaways ?? [],
     },
     ...(data ? { data } : {}),
   }

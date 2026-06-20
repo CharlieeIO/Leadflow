@@ -146,6 +146,10 @@ export interface LeadMetadata {
   address?: string
   issue_description?: string
   key_takeaways?: string[]
+  /** Letter grade: A (hot), B (good), C (lukewarm), D (low intent / out of area) */
+  grade?: 'A' | 'B' | 'C' | 'D'
+  /** 2-3 sentence AI analysis of this lead's quality and situation */
+  ai_summary?: string
   [key: string]: unknown
 }
 

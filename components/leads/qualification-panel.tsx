@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  Brain,
 } from 'lucide-react'
 
 interface QualificationPanelProps {
@@ -22,6 +23,8 @@ interface QualificationPanelProps {
     urgency?: string
     address?: string
     issue_description?: string
+    grade?: 'A' | 'B' | 'C' | 'D'
+    ai_summary?: string
     [key: string]: unknown
   }
 }
@@ -43,8 +46,17 @@ export function QualificationPanel({ leadId, serviceType, metadata }: Qualificat
   const urgency = metadata.urgency
   const address = metadata.address
   const issueDescription = metadata.issue_description
+  const grade = metadata.grade
+  const aiSummary = metadata.ai_summary
 
-  const hasAiData = !!(serviceType || urgency || address || issueDescription || takeaways.length)
+  const GRADE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+    A: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Hot' },
+    B: { bg: 'bg-blue-100',    text: 'text-blue-700',    label: 'Good' },
+    C: { bg: 'bg-amber-100',   text: 'text-amber-700',   label: 'Warm' },
+    D: { bg: 'bg-slate-100',   text: 'text-slate-500',   label: 'Cold' },
+  }
+
+  const hasAiData = !!(serviceType || urgency || address || issueDescription || takeaways.length || grade || aiSummary)
 
   async function saveNotes() {
     setSaving(true)
@@ -83,6 +95,28 @@ export function QualificationPanel({ leadId, serviceType, metadata }: Qualificat
 
       {expanded && (
         <div className="px-5 pb-5 space-y-4 border-t border-slate-100">
+          {/* Grade badge + AI summary */}
+          {(grade || aiSummary) && (
+            <div className="mt-4 space-y-3">
+              {grade && (
+                <div className="flex items-center gap-2">
+                  <span className={`text-lg font-black w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${GRADE_STYLES[grade].bg} ${GRADE_STYLES[grade].text}`}>
+                    {grade}
+                  </span>
+                  <span className={`text-xs font-semibold ${GRADE_STYLES[grade].text}`}>
+                    {GRADE_STYLES[grade].label} Lead
+                  </span>
+                </div>
+              )}
+              {aiSummary && (
+                <div className="bg-blue-50 rounded-lg p-3 flex gap-2">
+                  <Brain size={13} className="text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-800 leading-relaxed">{aiSummary}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* AI-extracted fields */}
           {hasAiData && (
             <div className="mt-4 space-y-2.5">
