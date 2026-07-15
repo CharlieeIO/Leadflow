@@ -27,7 +27,18 @@ export default function PrivacyPage() {
       {/* Body */}
       <main className="max-w-3xl mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold text-slate-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-slate-500 mb-10">Effective date: {effective}</p>
+        <p className="text-sm text-slate-500 mb-6">Effective date: {effective}</p>
+
+        {/* TCR-required SMS data sharing notice — must be prominent and standalone */}
+        <div className="bg-slate-900 text-white rounded-xl p-5 mb-10">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">SMS &amp; Text Messaging — Data Sharing Notice</p>
+          <p className="text-sm leading-relaxed">
+            <strong>No mobile information will be shared with third parties or affiliates for marketing or
+            promotional purposes.</strong> Text messaging originator opt-in data and consent will not be shared
+            with any third parties under any circumstances. Standard message and data rates may apply.
+            Reply <strong>STOP</strong> to cancel at any time.
+          </p>
+        </div>
 
         <div className="prose prose-slate max-w-none space-y-8 text-slate-700 text-sm leading-relaxed">
 
@@ -36,8 +47,8 @@ export default function PrivacyPage() {
             <p>
               {company} ("LeadFlow AI," "we," "us," or "our") is committed to protecting your
               privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard
-              your information when you use our website at {website} or receive SMS communications
-              sent through our platform on behalf of our business clients.
+              your information when you use our website at {website} or receive SMS text message
+              communications sent through our platform on behalf of our business clients.
             </p>
             <p className="mt-2">
               Please read this policy carefully. If you do not agree with its terms, please
@@ -66,10 +77,10 @@ export default function PrivacyPage() {
 
             <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">2c. AI-Processed Information</h3>
             <p>
-              Messages sent through our platform may be processed by AI to generate responses,
-              extract qualification information (such as service type, urgency, and location), and
-              assign a lead quality assessment. This processing is performed on behalf of the
-              business you are communicating with.
+              Messages sent through our platform may be processed by artificial intelligence to
+              generate responses, extract qualification information (such as service type, urgency,
+              and location), and assist with appointment scheduling. This processing is performed
+              on behalf of the business you are communicating with.
             </p>
           </section>
 
@@ -77,7 +88,7 @@ export default function PrivacyPage() {
             <h2 className="text-base font-semibold text-slate-900 mb-2">3. How We Use Your Information</h2>
             <p>We use the information we collect to:</p>
             <ul className="list-disc pl-5 mt-2 space-y-1">
-              <li>Deliver SMS messages between you and the businesses using our platform</li>
+              <li>Deliver SMS text messages between you and the businesses using our platform</li>
               <li>Generate AI-powered responses on behalf of those businesses</li>
               <li>Schedule and confirm appointments</li>
               <li>Provide business subscribers with lead management and analytics tools</li>
@@ -89,34 +100,51 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-2">4. SMS-Specific Privacy Practices</h2>
+            <h2 className="text-base font-semibold text-slate-900 mb-2">4. SMS Text Messaging — Your Rights and Our Commitments</h2>
 
-            <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">4a. No Sharing for Third-Party Marketing</h3>
+            <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">4a. No Sharing of SMS Opt-In Data</h3>
             <p>
               <strong>
-                We do not sell, rent, trade, or share your phone number or SMS message content with
-                any third party for their own marketing or advertising purposes.
-              </strong>{' '}
-              Your phone number is used solely to facilitate communications with the specific business
-              you have contacted.
+                No mobile information, including SMS opt-in consent, phone numbers, and text message
+                content, will be shared with third parties or affiliates for marketing or promotional
+                purposes. All categories of personal data described in this policy exclude text
+                messaging originator opt-in data and consent — this information will not be shared
+                with any third parties under any circumstances.
+              </strong>
             </p>
 
-            <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">4b. Opt-Out</h3>
+            <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">4b. How to Opt Out (STOP)</h3>
             <p>
-              You may stop receiving SMS messages at any time by replying <strong>STOP</strong> to
-              any message. You will receive one final confirmation, after which no further messages
-              will be sent. To resume, reply <strong>START</strong>.
+              You may stop receiving SMS text messages at any time by replying <strong>STOP</strong> to
+              any message you receive from us. After opting out, you will receive a single confirmation
+              message and no further messages will be sent to your number. To resume messages, reply{' '}
+              <strong>START</strong>. For help, reply <strong>HELP</strong> or contact us at{' '}
+              <a href={`mailto:${email}`} className="text-blue-600 hover:underline">{email}</a>.
             </p>
             <p className="mt-2">
               Opting out of SMS messages does not delete any previously collected information.
-              To request deletion of your data, contact us at{' '}
+              To request deletion of your personal data, contact us at{' '}
               <a href={`mailto:${email}`} className="text-blue-600 hover:underline">{email}</a>.
             </p>
 
-            <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">4c. Message and Data Rates</h3>
+            <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">4c. Message Frequency</h3>
             <p>
-              Standard message and data rates from your mobile carrier may apply to SMS messages
-              you receive or send.
+              Message frequency varies based on your inquiry and the business you have contacted.
+              You may receive multiple messages related to a single service request or appointment.
+            </p>
+
+            <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">4d. Message and Data Rates</h3>
+            <p>
+              Standard message and data rates from your wireless carrier may apply to any SMS text
+              messages you send or receive through our platform.
+            </p>
+
+            <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1">4e. Consent</h3>
+            <p>
+              By texting a business number powered by LeadFlow AI, or by submitting your phone
+              number through a web form connected to our platform, you consent to receive automated
+              SMS text messages from that business. <strong>Consent is not a condition of any
+              purchase.</strong>
             </p>
           </section>
 
