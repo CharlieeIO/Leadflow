@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Us — LeadFlow AI</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #334155; font-size: 15px; line-height: 1.7; min-height: 100vh; display: flex; flex-direction: column; }
+  a { color: #2563eb; }
+
+  header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; }
+  header .inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+  header .logo { font-weight: 700; font-size: 17px; color: #0f172a; text-decoration: none; }
+  header nav a { font-size: 14px; color: #64748b; text-decoration: none; margin-left: 20px; }
+  header nav a:hover { color: #0f172a; }
+
+  main { flex: 1; max-width: 520px; margin: 60px auto; padding: 0 24px 80px; width: 100%; }
+
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 40px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; background: #eff6ff; color: #2563eb; border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 600; margin-bottom: 20px; }
+  .badge svg { width: 14px; height: 14px; }
+
+  h1 { font-size: 22px; font-weight: 800; color: #0f172a; margin-bottom: 6px; }
+  .subtitle { font-size: 14px; color: #64748b; margin-bottom: 32px; }
+
+  .field { margin-bottom: 20px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+  input[type="text"],
+  input[type="tel"],
+  input[type="email"] {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #0f172a;
+    outline: none;
+    transition: border-color 0.15s;
+    background: #fff;
+  }
+  input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+  .consent-block { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 24px; }
+  .consent-row { display: flex; gap: 12px; align-items: flex-start; }
+  .consent-row input[type="checkbox"] {
+    margin-top: 3px;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    accent-color: #2563eb;
+    cursor: pointer;
+  }
+  .consent-text { font-size: 12.5px; color: #475569; line-height: 1.6; }
+  .consent-text strong { color: #0f172a; }
+
+  .btn {
+    width: 100%;
+    padding: 13px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: #1d4ed8; }
+
+  .rates { font-size: 11.5px; color: #94a3b8; text-align: center; margin-top: 14px; }
+  .rates a { color: #94a3b8; }
+
+  .how-it-works { margin-top: 48px; }
+  .how-it-works h2 { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 16px; text-transform: uppercase; letter-spacing: .05em; }
+  .steps { display: flex; flex-direction: column; gap: 14px; }
+  .step { display: flex; gap: 14px; align-items: flex-start; }
+  .step-num { width: 28px; height: 28px; background: #eff6ff; color: #2563eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .step-text { font-size: 13px; color: #475569; padding-top: 4px; }
+
+  footer { background: #fff; border-top: 1px solid #e2e8f0; padding: 24px; text-align: center; font-size: 12px; color: #94a3b8; }
+  footer a { color: #94a3b8; text-decoration: none; margin: 0 10px; }
+  footer a:hover { color: #475569; }
+  footer p { margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="inner">
+    <a href="/" class="logo">LeadFlow AI</a>
+    <nav>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="badge">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/><path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"/></svg>
+      SMS Opt-In Form
+    </div>
+
+    <h1>Get a Free Estimate</h1>
+    <p class="subtitle">Fill out your details and our team will reach out by text to schedule a time that works for you.</p>
+
+    <form>
+      <div class="field">
+        <label for="name">Full name</label>
+        <input type="text" id="name" placeholder="Jane Smith" autocomplete="name" />
+      </div>
+
+      <div class="field">
+        <label for="phone">Mobile phone number</label>
+        <input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel" />
+      </div>
+
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" placeholder="jane@example.com" autocomplete="email" />
+      </div>
+
+      <!-- SMS Consent — checkbox must be unchecked by default per TCPA and TCR requirements -->
+      <div class="consent-block">
+        <div class="consent-row">
+          <input type="checkbox" id="sms-consent" />
+          <label for="sms-consent" class="consent-text">
+            By checking this box, I consent to receive automated SMS text messages from the business
+            I am contacting, powered by <strong>LeadFlow AI</strong>. These messages may include
+            appointment scheduling, follow-up communications, and service information. Message
+            frequency varies. <strong>Consent is not a condition of any purchase.</strong>
+            Reply <strong>STOP</strong> to opt out at any time. Reply <strong>HELP</strong> for
+            help. Standard message and data rates may apply. View our
+            <a href="/privacy.html" target="_blank">Privacy Policy</a> and
+            <a href="/terms.html" target="_blank">Terms and Conditions</a>.
+          </label>
+        </div>
+      </div>
+
+      <button type="button" class="btn">Request Free Estimate</button>
+
+      <p class="rates">
+        Msg &amp; data rates may apply &middot; Reply STOP to cancel &middot;
+        <a href="/privacy.html">Privacy Policy</a> &middot;
+        <a href="/terms.html">Terms</a>
+      </p>
+    </form>
+  </div>
+
+  <div class="how-it-works">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <p class="step-text">You submit this form and give explicit consent to receive SMS messages.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <p class="step-text">Our AI assistant texts you to confirm details and find a time that works.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <p class="step-text">You get a booking confirmation and reminders — reply STOP at any time to opt out.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div>
+    <a href="/terms.html">Terms and Conditions</a>
+    <a href="/privacy.html">Privacy Policy</a>
+  </div>
+  <p>&copy; 2026 LeadFlow AI LLC. All rights reserved.</p>
+</footer>
+
+</body>
+</html>
