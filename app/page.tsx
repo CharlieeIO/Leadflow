@@ -1,5 +1,3 @@
-import { redirect } from 'next/navigation'
-import { getSupabaseServerClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
 export const metadata = {
@@ -8,10 +6,6 @@ export const metadata = {
 }
 
 export default async function LandingPage() {
-  const supabase = await getSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (user) redirect('/dashboard')
-
   return (
     <div className="min-h-screen bg-[#080a0f] text-white">
 
