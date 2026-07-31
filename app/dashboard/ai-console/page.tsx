@@ -144,7 +144,7 @@ export default function AIConsolePage() {
             <p className="text-xs font-medium text-slate-500 mb-2">Sample tone at this level</p>
             <p className="text-sm text-slate-700 italic">
               {toneLevel <= 25
-                ? '"We'd be happy to schedule a complimentary estimate at your earliest convenience."'
+                ? '"We would be happy to schedule a complimentary estimate at your earliest convenience."'
                 : toneLevel <= 60
                 ? '"Sounds good — want me to grab you a time that works?"'
                 : '"Yeah totally, let\'s get you on the schedule. When works for you?"'}

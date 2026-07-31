@@ -353,9 +353,9 @@ async function sendEscalationEmail(params: {
       .eq('business_id', business.id)
       .order('created_at', { ascending: true })
 
-    // Append the latest inbound message if not already saved
-    const messages = [
-      ...(allMessages ?? []),
+    type MsgRow = { direction: 'inbound' | 'outbound'; body: string; created_at: string; ai_generated: boolean }
+    const messages: MsgRow[] = [
+      ...((allMessages ?? []) as MsgRow[]),
       {
         direction: 'inbound' as const,
         body: latestMessage,
