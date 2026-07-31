@@ -83,10 +83,27 @@ export type NotificationType =
 
 // ── Business Settings (stored in businesses.settings jsonb) ──────────────────
 
+export interface QuickReply {
+  label: string
+  body: string
+}
+
 export interface BusinessSettings {
   owner_name?: string
   ai_persona_name?: string
   ai_tone?: 'friendly' | 'professional' | 'urgent'
+  /** 0 = professional, 50 = friendly, 100 = casual/conversational */
+  ai_tone_level?: number
+  /** Seconds to wait before sending AI reply (humanizing delay) */
+  response_delay_seconds?: 0 | 15 | 30 | 60
+  /** If true, AI goes silent during quiet hours */
+  quiet_hours_enabled?: boolean
+  /** 24h format e.g. "22:00" */
+  quiet_hours_start?: string
+  /** 24h format e.g. "07:00" */
+  quiet_hours_end?: string
+  /** Saved quick-reply templates the owner can blast manually */
+  quick_replies?: QuickReply[]
   notification_email?: string
   notification_phone?: string
   custom_instructions?: string
@@ -94,7 +111,6 @@ export interface BusinessSettings {
   address?: string
   hours_of_operation?: string
   booking_link?: string
-  /** Optional per-service-type Cal.com links (HVAC: AC repair, heating repair, etc.) */
   booking_links_by_service?: Record<string, string>
   slack_webhook?: string
   language?: Language

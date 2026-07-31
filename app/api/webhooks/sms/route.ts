@@ -131,6 +131,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     lead = newLead as Lead
   }
 
+  // ── Quiet hours check ────────────────────────────────────────────────────────
+  const bSettings = business.settings as import('@/types').BusinessSettings
+  if (bSettings.quiet_hours_enabled) {
+    const tz = bSettings.timezone ?? 'America/New_York'
+    const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: tz })
+    const start = bSettings.quiet_hours_start ?? '22:00'
+    const end   = bSettings.quiet_hours_end   ?? '07:00'
+    const inQuiet = start > end
+      ? now >= start || now < end   // overnight range e.g. 22:00–07:00
+      : now >= start && now < end   // same-day range
+    if (inQuiet) {
+      logger.info('sms_webhook_quiet_hours', { business_id: business.id, lead_id: lead.id })
+      return twimlResponse()
+    }
+  }
+
+  // ── Response delay (humanizing pause) ────────────────────────────────────────
+  const delaySec = (bSettings.response_delay_seconds ?? 0) as number
+  if (delaySec > 0) {
+    await new Promise((resolve) => setTimeout(resolve, delaySec * 1000))
+  }
+
   // ── Skip AI if paused (human is handling) ────────────────────────────────────
   if (lead.ai_paused) {
     // Still save the inbound message so the owner can see it in the dashboard.
