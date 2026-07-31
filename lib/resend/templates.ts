@@ -258,6 +258,90 @@ export function bookingSummaryHtml(data: BookingSummaryData): string {
 </html>`
 }
 
+// ── Escalation alert email — fired when AI hands off to a human ───────────────
+
+interface EscalationAlertData {
+  businessName: string
+  leadName: string | null
+  leadPhone: string
+  reason: string
+  messages: ConversationMessage[]
+  dashboardUrl: string
+}
+
+export function escalationAlertHtml(data: EscalationAlertData): string {
+  const { businessName, leadName, leadPhone, reason, messages, dashboardUrl } = data
+  const displayName = leadName ?? leadPhone
+
+  const threadHtml = messages.map((m) => {
+    const isInbound = m.direction === 'inbound'
+    const bg = isInbound ? '#f1f5f9' : '#eff6ff'
+    const label = isInbound ? displayName : (m.ai_generated ? 'AI' : 'You')
+    const labelColor = isInbound ? '#475569' : '#1d4ed8'
+    return `<div style="margin-bottom:12px;">
+      <p style="margin:0 0 3px;font-size:11px;font-weight:600;color:${labelColor};text-transform:uppercase;letter-spacing:.04em;">${label}</p>
+      <div style="background:${bg};border-radius:8px;padding:10px 14px;font-size:14px;color:#1e293b;line-height:1.5;">
+        ${m.body.replace(/\n/g, '<br>')}
+      </div>
+      <p style="margin:3px 0 0;font-size:11px;color:#94a3b8;">${formatTime(m.created_at)}</p>
+    </div>`
+  }).join('')
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#7f1d1d;border-radius:12px 12px 0 0;padding:28px 32px;">
+            <p style="margin:0;font-size:12px;color:#fca5a5;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">⚠️ Escalation · ${businessName}</p>
+            <h1 style="margin:6px 0 4px;font-size:22px;color:#fff;font-weight:700;">${displayName} needs a human</h1>
+            <p style="margin:0;font-size:14px;color:#fecaca;">${leadPhone}</p>
+          </td>
+        </tr>
+
+        <!-- Reason -->
+        <tr>
+          <td style="background:#fff3f3;border-left:1px solid #fecaca;border-right:1px solid #fecaca;padding:16px 32px;">
+            <p style="margin:0;font-size:12px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.05em;">Reason</p>
+            <p style="margin:6px 0 0;font-size:14px;color:#1e293b;">${reason}</p>
+          </td>
+        </tr>
+
+        <!-- Thread -->
+        <tr>
+          <td style="background:#fff;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;padding:20px 32px 24px;">
+            <h2 style="margin:0 0 16px;font-size:15px;font-weight:600;color:#0f172a;">Full Conversation</h2>
+            ${threadHtml || '<p style="font-size:13px;color:#94a3b8;">No messages recorded.</p>'}
+          </td>
+        </tr>
+
+        <!-- CTA -->
+        <tr>
+          <td style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:20px 32px;text-align:center;">
+            <a href="sms:${leadPhone}"
+               style="display:inline-block;background:#dc2626;color:#fff;font-size:14px;font-weight:600;padding:11px 28px;border-radius:8px;text-decoration:none;margin-right:12px;">
+              Text them now →
+            </a>
+            <a href="${dashboardUrl}"
+               style="display:inline-block;background:#2563eb;color:#fff;font-size:14px;font-weight:600;padding:11px 28px;border-radius:8px;text-decoration:none;">
+              View in Dashboard →
+            </a>
+            <p style="margin:14px 0 0;font-size:12px;color:#94a3b8;">Sent by LeadFlow AI · ${businessName}</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
 // ── Weekly report email ───────────────────────────────────────────────────────
 
 interface WeeklyReportData {

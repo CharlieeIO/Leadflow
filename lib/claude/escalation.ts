@@ -108,8 +108,8 @@ export function checkEscalation(
     }
   }
 
-  // 5. Message limit — 10+ exchanges with no booking yet
-  if (history.length >= 10) {
+  // 5. Message limit — 16+ exchanges with no booking yet
+  if (history.length >= 16) {
     return {
       escalate: true,
       type: 'message_limit',

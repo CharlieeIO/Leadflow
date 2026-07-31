@@ -5,8 +5,10 @@ import { sendSMS } from '@/lib/twilio/sender'
 import { generateQualificationResponse } from '@/lib/claude/orchestrator'
 import { notifyOwner } from '@/lib/notifications/owner'
 import { fireCrmWebhook } from '@/lib/crm/outbound'
+import { getResend } from '@/lib/resend/client'
+import { escalationAlertHtml } from '@/lib/resend/templates'
 import { logger } from '@/lib/logger'
-import type { Business, Lead, Conversation } from '@/types'
+import type { Business, BusinessSettings, Lead, Conversation } from '@/types'
 
 // Twilio sends form-encoded bodies, not JSON.
 // We respond with empty TwiML — messages are sent via API (not TwiML verbs)
@@ -132,7 +134,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // ── Quiet hours check ────────────────────────────────────────────────────────
-  const bSettings = business.settings as import('@/types').BusinessSettings
+  const bSettings = business.settings as BusinessSettings
   if (bSettings.quiet_hours_enabled) {
     const tz = bSettings.timezone ?? 'America/New_York'
     const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: tz })
@@ -260,13 +262,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       lead_id: lead.id,
       reason: result.reason,
     })
+
     void notifyOwner({
       business: business as Business,
       lead,
       message: result.reason,
       type: 'escalation',
     })
+
     void fireCrmWebhook({ business: business as Business, lead, event: 'lead.escalated', data: { reason: result.reason } })
+
+    // Send escalation email with full conversation transcript
+    void sendEscalationEmail({
+      business: business as Business,
+      lead,
+      reason: result.reason,
+      recentHistory: history,
+      latestMessage: body.trim(),
+    })
+
     return twimlResponse()
   }
 
@@ -314,4 +328,69 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   return twimlResponse()
+}
+
+// ── Escalation email with full conversation transcript ────────────────────────
+async function sendEscalationEmail(params: {
+  business: Business
+  lead: Lead
+  reason: string
+  recentHistory: Conversation[]
+  latestMessage: string
+}): Promise<void> {
+  const { business, lead, reason, recentHistory, latestMessage } = params
+  const settings = business.settings as BusinessSettings
+  if (!settings.notification_email) return
+
+  try {
+    const supabase = getSupabaseServiceClient()
+
+    // Load full conversation (not just the last 10 passed to the orchestrator)
+    const { data: allMessages } = await supabase
+      .from('conversations')
+      .select('direction, body, created_at, ai_generated')
+      .eq('lead_id', lead.id)
+      .eq('business_id', business.id)
+      .order('created_at', { ascending: true })
+
+    // Append the latest inbound message if not already saved
+    const messages = [
+      ...(allMessages ?? []),
+      {
+        direction: 'inbound' as const,
+        body: latestMessage,
+        created_at: new Date().toISOString(),
+        ai_generated: false,
+      },
+    ]
+
+    const dashboardUrl = `${process.env.NEXT_PUBLIC_URL ?? 'https://www.theleadflowautomation.com'}/dashboard/leads/${lead.id}`
+
+    const resend = getResend()
+    await resend.emails.send({
+      from: `LeadFlow AI <notifications@${process.env.RESEND_FROM_DOMAIN ?? 'theleadflowautomation.com'}>`,
+      to: settings.notification_email,
+      subject: `⚠️ Escalation — ${lead.name ?? lead.phone} needs you — ${business.name}`,
+      html: escalationAlertHtml({
+        businessName: business.name,
+        leadName: lead.name,
+        leadPhone: lead.phone,
+        reason,
+        messages,
+        dashboardUrl,
+      }),
+    })
+
+    logger.info('escalation_email_sent', {
+      business_id: business.id,
+      lead_id: lead.id,
+      to: settings.notification_email,
+    })
+  } catch (err) {
+    logger.error('escalation_email_failed', {
+      business_id: business.id,
+      lead_id: lead.id,
+      error: String(err),
+    })
+  }
 }
