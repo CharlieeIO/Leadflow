@@ -38,9 +38,23 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   )
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default function OnboardPage({ params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = use(params)
   const router = useRouter()
+
+  if (!UUID_RE.test(businessId ?? '')) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-8 max-w-sm text-center">
+          <p className="text-sm font-medium text-red-600 mb-1">Invalid business ID</p>
+          <p className="text-xs text-slate-400 mb-4">The URL is missing a valid business ID. Go back and select a business from the admin panel.</p>
+          <button onClick={() => router.push('/admin')} className="px-4 py-2 bg-slate-900 text-white text-sm rounded-lg">Back to admin</button>
+        </div>
+      </div>
+    )
+  }
   const [step, setStep] = useState<Step>(0)
   const [form, setForm] = useState<FormState>({
     name: '', niche: '', owner_name: '', service_area: '', timezone: '',

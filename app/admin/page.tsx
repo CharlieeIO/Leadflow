@@ -219,8 +219,8 @@ export default async function AdminPage() {
                                 Manage
                               </Link>
                               <span className="text-slate-300">·</span>
-                              <Link href={`/admin/businesses/${b.id}`} className="text-xs text-slate-500 hover:underline">
-                                Settings
+                              <Link href={`/admin/onboard/${b.id}`} className="text-xs text-slate-500 hover:underline">
+                                Onboard
                               </Link>
                               <span className="text-slate-300">·</span>
                               <DeleteBusinessButton id={b.id} name={b.name} />
