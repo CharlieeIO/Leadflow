@@ -329,6 +329,19 @@ async function processInbound({
       error: String(err),
     })
   }
+
+  // ── Owner SMS notification on first lead contact ──────────────────────────────
+  // Only fires when this is a brand-new lead and the owner has a notification number.
+  if (lead.status === 'new' && bSettings.notification_phone) {
+    const preview = body.trim().slice(0, 120)
+    const notifyBody = `LeadFlow: New lead from ${from}\n"${preview}"\nAI replied ✓`
+    void sendSMS({
+      to: bSettings.notification_phone,
+      from: to,
+      body: notifyBody,
+      business_id: business.id,
+    }).catch(() => {})
+  }
 }
 
 // ── Escalation email with full conversation transcript ────────────────────────

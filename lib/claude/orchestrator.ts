@@ -81,11 +81,22 @@ function trimToSMSLength(text: string, maxChars = 320): string {
     : truncated.slice(0, truncated.lastIndexOf(' ')).trim() + '…'
 }
 
-// Gets the booking link for a business. Embeds lead_id + business_id as Cal.com
-// metadata query params so the booking webhook can match the appointment back to
-// this lead without relying on phone/email guessing.
+// Gets the booking link for a business. Tries service-type–specific links first
+// (so the AI sends the right Cal.com event for AC repair vs heating install, etc.),
+// then falls back to the single booking_link, then the cal_event_type_id link.
 function getBookingLink(business: Business, lead: Lead): string | null {
   const settings = business.settings as BusinessSettings
+
+  // Match by service type — fuzzy case-insensitive substring match
+  if (settings.booking_links_by_service && lead.service_type) {
+    const needle = lead.service_type.toLowerCase()
+    const match = Object.entries(settings.booking_links_by_service).find(([key]) => {
+      const k = key.toLowerCase()
+      return k === needle || k.includes(needle) || needle.includes(k)
+    })
+    if (match) return match[1]
+  }
+
   if (settings.booking_link) return settings.booking_link
   if (business.cal_event_type_id) {
     const params = new URLSearchParams({
