@@ -14,6 +14,10 @@ const EXTRACTION_MODEL = 'claude-haiku-4-5'
 const MAX_TOKENS = 300
 const TIMEOUT_MS = 10_000
 
+// Module-level singletons — reused across warm Lambda invocations
+const anthropicMain = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: TIMEOUT_MS })
+const anthropicExtract = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 8_000 })
+
 // Spanish detection — simple heuristic run on the inbound message.
 const SPANISH_PATTERN =
   /\b(hola|gracias|ayuda|necesito|tengo|quiero|casa|techo|aire|calor|frio|buenas|buenos|por favor|cómo|como|qué|que|cuánto|cuanto|dónde|donde|cuándo|cuando)\b|[¿¡ñÑáéíóúüÁÉÍÓÚÜ]/i
@@ -144,12 +148,7 @@ export async function generateQualificationResponse(
   let completionTokens = 0
 
   try {
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: TIMEOUT_MS,
-    })
-
-    const response = await client.messages.create({
+    const response = await anthropicMain.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
@@ -302,12 +301,7 @@ Rules:
 - Return only the JSON object, nothing else`
 
   try {
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: 8_000,
-    })
-
-    const response = await client.messages.create({
+    const response = await anthropicExtract.messages.create({
       model: EXTRACTION_MODEL,
       max_tokens: 400,
       messages: [{ role: 'user', content: prompt }],

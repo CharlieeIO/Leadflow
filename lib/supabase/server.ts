@@ -37,15 +37,21 @@ export async function getSupabaseServerClient() {
 // Bypasses RLS entirely. ONLY use in server-side code that has already
 // validated the request (Twilio signature, Stripe webhook secret, etc.).
 // Never import this in a Client Component or expose it to the browser.
+// Cached at module level — reused across warm invocations on the same Lambda container.
+let _serviceClient: ReturnType<typeof createClient<Database>> | null = null
+
 export function getSupabaseServiceClient() {
-  return createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
+  if (!_serviceClient) {
+    _serviceClient = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
       },
-    },
-  )
+    )
+  }
+  return _serviceClient
 }

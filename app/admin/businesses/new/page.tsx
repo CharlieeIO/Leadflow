@@ -53,7 +53,7 @@ export default function NewBusinessPage() {
       return
     }
 
-    router.push(`/admin/onboard/${data.business_id}`)
+    router.push(`/admin/businesses/${data.business.id}`)
   }
 
   return (

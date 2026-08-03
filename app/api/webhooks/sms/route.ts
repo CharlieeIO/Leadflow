@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import twilio from 'twilio'
 import { getSupabaseServiceClient } from '@/lib/supabase/server'
 import { sendSMS } from '@/lib/twilio/sender'
@@ -133,19 +133,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     lead = newLead as Lead
   }
 
-  // ── Quiet hours check ────────────────────────────────────────────────────────
+  // ── Return TwiML to Twilio immediately ───────────────────────────────────────
+  // Twilio's webhook timeout is 15 seconds. All heavy work (delay, AI call,
+  // SMS send) runs inside after() so Twilio always gets its 200 fast.
+  after(async () => {
+    await processInbound({ business: business as Business, lead, from, to, body, messageSid, supabase })
+  })
+
+  return twimlResponse()
+}
+
+// ── Inbound processing (runs after TwiML is returned to Twilio) ───────────────
+async function processInbound({
+  business, lead, from, to, body, messageSid, supabase,
+}: {
+  business: Business
+  lead: Lead
+  from: string
+  to: string
+  body: string
+  messageSid: string | undefined
+  supabase: ReturnType<typeof getSupabaseServiceClient>
+}): Promise<void> {
   const bSettings = business.settings as BusinessSettings
+
+  // ── Quiet hours check ────────────────────────────────────────────────────────
   if (bSettings.quiet_hours_enabled) {
     const tz = bSettings.timezone ?? 'America/New_York'
     const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: tz })
     const start = bSettings.quiet_hours_start ?? '22:00'
     const end   = bSettings.quiet_hours_end   ?? '07:00'
     const inQuiet = start > end
-      ? now >= start || now < end   // overnight range e.g. 22:00–07:00
-      : now >= start && now < end   // same-day range
+      ? now >= start || now < end
+      : now >= start && now < end
     if (inQuiet) {
       logger.info('sms_webhook_quiet_hours', { business_id: business.id, lead_id: lead.id })
-      return twimlResponse()
+      return
     }
   }
 
@@ -157,7 +180,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // ── Skip AI if paused (human is handling) ────────────────────────────────────
   if (lead.ai_paused) {
-    // Still save the inbound message so the owner can see it in the dashboard.
     await supabase.from('conversations').insert({
       lead_id: lead.id,
       business_id: business.id,
@@ -167,12 +189,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ai_generated: false,
       twilio_sid: messageSid ?? null,
     })
-
-    logger.info('sms_webhook_ai_paused', {
-      business_id: business.id,
-      lead_id: lead.id,
-    })
-    return twimlResponse()
+    logger.info('sms_webhook_ai_paused', { business_id: business.id, lead_id: lead.id })
+    return
   }
 
   // ── Save inbound message ──────────────────────────────────────────────────────
@@ -196,7 +214,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       lead_id: lead.id,
       error: msgError?.message,
     })
-    return twimlResponse()
+    return
   }
 
   // ── Load conversation history (last 10, oldest-first) ────────────────────────
@@ -214,7 +232,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // ── Run the AI orchestrator ───────────────────────────────────────────────────
   const result = await generateQualificationResponse({
-    business: business as Business,
+    business,
     lead,
     inboundMessage: body.trim(),
     conversationHistory: history,
@@ -263,25 +281,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       reason: result.reason,
     })
 
-    void notifyOwner({
-      business: business as Business,
-      lead,
-      message: result.reason,
-      type: 'escalation',
-    })
-
-    void fireCrmWebhook({ business: business as Business, lead, event: 'lead.escalated', data: { reason: result.reason } })
-
-    // Send escalation email with full conversation transcript
-    void sendEscalationEmail({
-      business: business as Business,
-      lead,
-      reason: result.reason,
-      recentHistory: history,
-      latestMessage: body.trim(),
-    })
-
-    return twimlResponse()
+    void notifyOwner({ business, lead, message: result.reason, type: 'escalation' })
+    void fireCrmWebhook({ business, lead, event: 'lead.escalated', data: { reason: result.reason } })
+    void sendEscalationEmail({ business, lead, reason: result.reason, recentHistory: history, latestMessage: body.trim() })
+    return
   }
 
   // For both 'response' and 'error', we have a message to send.
@@ -326,8 +329,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       error: String(err),
     })
   }
-
-  return twimlResponse()
 }
 
 // ── Escalation email with full conversation transcript ────────────────────────

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getSupabaseServerClient, getSupabaseServiceClient } from '@/lib/supabase/server'
 import { cn, timeAgo } from '@/lib/utils'
 import { Shield, Users, Calendar, DollarSign, AlertTriangle, CheckCircle, XCircle, Clock, Zap } from 'lucide-react'
+import { DeleteBusinessButton } from '@/components/admin/delete-business-button'
 
 const NICHE_LABELS: Record<string, string> = {
   roofing: 'Roofing', hvac: 'HVAC', medspa: 'Med Spa',
@@ -218,9 +219,11 @@ export default async function AdminPage() {
                                 Manage
                               </Link>
                               <span className="text-slate-300">·</span>
-                              <Link href={`/admin/onboard/${b.id}`} className="text-xs text-slate-500 hover:underline">
-                                Onboard
+                              <Link href={`/admin/businesses/${b.id}`} className="text-xs text-slate-500 hover:underline">
+                                Settings
                               </Link>
+                              <span className="text-slate-300">·</span>
+                              <DeleteBusinessButton id={b.id} name={b.name} />
                             </div>
                           </td>
                         </tr>
