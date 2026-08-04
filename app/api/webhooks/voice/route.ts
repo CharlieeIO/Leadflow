@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import twilio from 'twilio'
 import { getSupabaseServiceClient } from '@/lib/supabase/server'
 import { sendSMS } from '@/lib/twilio/sender'
@@ -59,27 +59,47 @@ function validateTwilioSignature(request: NextRequest, params: Record<string, st
 }
 
 // ── SMS follow-up after a missed call ─────────────────────────────────────────
-// Fires async — voice webhook must respond to Twilio within ~5s.
+// Saved to conversations so the AI has context when the lead texts back.
 async function sendMissedCallSMS(params: {
   business: Business
   lead: Lead
   twilioNumber: string
 }) {
   const { business, lead, twilioNumber } = params
+  const supabase = getSupabaseServiceClient()
 
   const message =
     lead.language === 'es'
-      ? `Hola${lead.name ? ` ${lead.name}` : ''}, vimos que llamaste a ${business.name}. ¿En qué podemos ayudarte hoy?`
-      : `Hey${lead.name ? ` ${lead.name}` : ''}, we saw you called ${business.name} — sorry we missed you! What can we help you with?`
+      ? `Hola${lead.name ? ` ${lead.name}` : ''}, vimos que llamaste a ${business.name}. Estamos en un trabajo ahora mismo — ¿en qué te podemos ayudar? ¡Responde aquí y te atendemos de inmediato!`
+      : `Hey${lead.name ? ` ${lead.name}` : ''}! Sorry we missed your call — we're out on a job right now. What did you need? Reply here and we'll take care of you. — ${business.name} team`
+
+  // Save to history first so AI sees it when lead replies
+  const { data: outboundMsg } = await supabase
+    .from('conversations')
+    .insert({
+      lead_id: lead.id,
+      business_id: business.id,
+      direction: 'outbound',
+      body: message,
+      channel: 'sms',
+      ai_generated: false,
+      twilio_sid: null,
+    })
+    .select('id')
+    .single()
 
   try {
-    await sendSMS({
+    const sent = await sendSMS({
       to: lead.phone!,
       from: twilioNumber,
       body: message,
       business_id: business.id,
       lead_id: lead.id,
     })
+
+    if (outboundMsg?.id) {
+      void supabase.from('conversations').update({ twilio_sid: sent.sid }).eq('id', outboundMsg.id)
+    }
   } catch (err) {
     logger.error('missed_call_sms_failed', {
       business_id: business.id,
@@ -217,18 +237,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // No Retell (or Retell failed) — play message + fire SMS follow-up + notify owner
-  sendMissedCallSMS({
-    business: business as Business,
-    lead,
-    twilioNumber: to,
-  }).catch(() => {})
+  // No Retell (or Retell failed) — play message, then fire SMS + notify owner after TwiML is returned
+  after(async () => {
+    await sendMissedCallSMS({
+      business: business as Business,
+      lead,
+      twilioNumber: to,
+    })
 
-  void notifyOwner({
-    business: business as Business,
-    lead,
-    message: `${lead.name ?? lead.phone} called ${business.name} — no agent answered. AI sent a follow-up SMS.`,
-    type: 'missed_call',
+    void notifyOwner({
+      business: business as Business,
+      lead,
+      message: `${lead.name ?? lead.phone} called ${business.name} — no agent answered. AI sent a follow-up SMS.`,
+      type: 'missed_call',
+    })
   })
 
   return twimlResponse(missedCallTwiml(business.name))
