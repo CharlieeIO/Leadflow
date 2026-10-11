@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import twilio from 'twilio'
 import { getSupabaseServiceClient } from '@/lib/supabase/server'
 import { sendSMS } from '@/lib/twilio/sender'
+import { getTwilioAuthTokenForBusiness } from '@/lib/twilio/client'
 import { generateQualificationResponse } from '@/lib/claude/orchestrator'
 import { notifyOwner } from '@/lib/notifications/owner'
 import { fireCrmWebhook } from '@/lib/crm/outbound'
@@ -20,24 +21,6 @@ function twimlResponse(status = 200) {
     status,
     headers: { 'Content-Type': 'text/xml' },
   })
-}
-
-// ── Twilio signature validation ───────────────────────────────────────────────
-// Prevents spoofed requests. Twilio signs every webhook with HMAC-SHA1.
-// The URL used for signing must exactly match what Twilio has on file.
-function validateTwilioSignature(request: NextRequest, params: Record<string, string>): boolean {
-  const authToken = process.env.TWILIO_AUTH_TOKEN
-  if (!authToken) return false
-
-  const signature = request.headers.get('x-twilio-signature') ?? ''
-
-  // Reconstruct the URL Twilio signed. In production behind a proxy, trust
-  // x-forwarded-proto / x-forwarded-host so the URL matches what Twilio stored.
-  const proto = request.headers.get('x-forwarded-proto') ?? new URL(request.url).protocol.replace(':', '')
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? new URL(request.url).host
-  const url = `${proto}://${host}/api/webhooks/sms`
-
-  return twilio.validateRequest(authToken, signature, url, params)
 }
 
 // ── Parse x-www-form-urlencoded body ─────────────────────────────────────────
@@ -69,20 +52,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return twimlResponse(400)
   }
 
-  // Validate Twilio signature — skip in local dev or when DISABLE_TWILIO_SIG_CHECK is set
-  if (process.env.TWILIO_AUTH_TOKEN && process.env.NODE_ENV !== 'development' && !process.env.DISABLE_TWILIO_SIG_CHECK) {
-    if (!validateTwilioSignature(request, params)) {
-      logger.warn('sms_webhook_invalid_signature', { to, from })
-      return twimlResponse(403)
-    }
-  }
-
   const supabase = getSupabaseServiceClient()
 
   // ── Look up business by its Twilio number ────────────────────────────────────
+  // Must happen before signature validation so we can use per-business auth tokens.
   const { data: business, error: bizError } = await supabase
     .from('businesses')
-    .select('id, name, niche, twilio_number, cal_event_type_id, settings, active, owner_user_id, retell_agent_id, created_at, updated_at')
+    .select('id, name, niche, twilio_number, twilio_account_sid, twilio_auth_token, cal_event_type_id, settings, active, owner_user_id, retell_agent_id, created_at, updated_at')
     .eq('twilio_number', to)
     .eq('active', true)
     .maybeSingle()
@@ -90,6 +66,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (bizError || !business) {
     logger.warn('sms_webhook_unknown_number', { to })
     return twimlResponse() // ack Twilio, ignore unknown number
+  }
+
+  // ── Validate Twilio signature using the right auth token for this business ────
+  if (process.env.NODE_ENV !== 'development' && !process.env.DISABLE_TWILIO_SIG_CHECK) {
+    const authToken = getTwilioAuthTokenForBusiness({
+      authToken: (business as Business & { twilio_auth_token?: string | null }).twilio_auth_token,
+    })
+    if (authToken) {
+      const signature = request.headers.get('x-twilio-signature') ?? ''
+      const proto = request.headers.get('x-forwarded-proto') ?? new URL(request.url).protocol.replace(':', '')
+      const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? new URL(request.url).host
+      const url = `${proto}://${host}/api/webhooks/sms`
+      if (!twilio.validateRequest(authToken, signature, url, params)) {
+        logger.warn('sms_webhook_invalid_signature', { to, from })
+        return twimlResponse(403)
+      }
+    }
   }
 
   // ── Find or create the lead ───────────────────────────────────────────────────
@@ -307,12 +300,15 @@ async function processInbound({
 
   // Send SMS
   try {
+    const biz = business as Business & { twilio_account_sid?: string | null; twilio_auth_token?: string | null }
     const sent = await sendSMS({
       to: from,
       from: to,
       body: outboundBody,
       business_id: business.id,
       lead_id: lead.id,
+      twilio_account_sid: biz.twilio_account_sid,
+      twilio_auth_token: biz.twilio_auth_token,
     })
 
     // Patch the twilio_sid onto the saved outbound message

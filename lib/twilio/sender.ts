@@ -1,4 +1,4 @@
-import { getTwilioClient } from './client'
+import { getTwilioClientForBusiness } from './client'
 import { logger } from '@/lib/logger'
 
 export interface SendSMSOptions {
@@ -7,6 +7,9 @@ export interface SendSMSOptions {
   body: string        // Message text (max 1600 chars, 160 per segment)
   business_id?: string
   lead_id?: string
+  // Per-business Twilio credentials — used when the customer owns their own account
+  twilio_account_sid?: string | null
+  twilio_auth_token?: string | null
 }
 
 export interface SendSMSResult {
@@ -19,13 +22,13 @@ export interface SendSMSResult {
 // Hard fails on: 4xx validation errors (bad number, unsubscribed, etc.) —
 // retrying those would just waste money.
 export async function sendSMS(options: SendSMSOptions): Promise<SendSMSResult> {
-  const { to, from, body, business_id, lead_id } = options
+  const { to, from, body, business_id, lead_id, twilio_account_sid, twilio_auth_token } = options
   const maxAttempts = 3
   let lastError: Error | null = null
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const client = getTwilioClient()
+      const client = getTwilioClientForBusiness({ accountSid: twilio_account_sid, authToken: twilio_auth_token })
 
       const message = await client.messages.create({
         to,

@@ -128,6 +128,10 @@ export interface Business {
   name: string
   niche: Niche
   twilio_number: string | null
+  // Set when the customer owns their own Twilio account (skeptical / white-glove customers).
+  // When present, all SMS for this business uses their credentials, not the platform's.
+  twilio_account_sid?: string | null
+  twilio_auth_token?: string | null
   retell_agent_id: string | null
   cal_event_type_id: string | null
   settings: BusinessSettings
