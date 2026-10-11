@@ -7,6 +7,61 @@ import type { DashboardStats } from '@/types'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
+type ChartDay = { date: string; count: number }
+
+function LeadsChart({ days }: { days: ChartDay[] }) {
+  const max = Math.max(...days.map((d) => d.count), 1)
+  const today = new Date().toISOString().slice(0, 10)
+  const BAR = 28
+  const GAP = 12
+  const CHART_H = 96
+  const LABEL_H = 18
+  const W = days.length * (BAR + GAP) - GAP
+  const H = CHART_H + LABEL_H + 18
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 180 }}>
+      {days.map((day, i) => {
+        const barH = Math.max((day.count / max) * CHART_H, day.count > 0 ? 5 : 1.5)
+        const x = i * (BAR + GAP)
+        const y = 18 + CHART_H - barH
+        const isToday = day.date === today
+        const label = new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 1)
+
+        return (
+          <g key={day.date}>
+            <rect x={x} y={y} width={BAR} height={barH} rx={4} fill={isToday ? '#2563EB' : '#BFDBFE'} />
+            {day.count > 0 && (
+              <text x={x + BAR / 2} y={y - 4} textAnchor="middle" fontSize={9} fill="#6B7280">
+                {day.count}
+              </text>
+            )}
+            <text
+              x={x + BAR / 2} y={18 + CHART_H + LABEL_H - 1}
+              textAnchor="middle" fontSize={9}
+              fill={isToday ? '#2563EB' : '#9CA3AF'}
+              fontWeight={isToday ? '700' : '400'}
+            >
+              {label}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function ChartSkeleton() {
+  const heights = [35, 55, 45, 70, 50, 30, 80, 60, 40, 90, 65, 45, 75, 55]
+  return (
+    <div className="flex items-end gap-1.5 px-1" style={{ height: 180, alignItems: 'flex-end' }}>
+      {heights.map((h, i) => (
+        <div key={i} className="flex-1 bg-slate-100 rounded animate-pulse" style={{ height: `${h}%` }} />
+      ))}
+    </div>
+  )
+}
+
 function StatCard({
   label,
   value,
@@ -72,13 +127,18 @@ function StatsSkeleton() {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [chartDays, setChartDays] = useState<ChartDay[] | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/dashboard/stats')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { setStats(d); setLoading(false) })
-      .catch(() => setLoading(false))
+    Promise.all([
+      fetch('/api/dashboard/stats').then((r) => r.ok ? r.json() : null),
+      fetch('/api/dashboard/chart').then((r) => r.ok ? r.json() : null),
+    ]).then(([statsData, chartData]) => {
+      setStats(statsData)
+      setChartDays(chartData?.days ?? null)
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   return (
@@ -116,10 +176,23 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-sm font-semibold text-slate-900 mb-4">Leads — last 14 days</p>
-          <div className="h-48 bg-slate-50 rounded-lg flex items-center justify-center">
-            <p className="text-sm text-slate-400">Chart coming in a future session</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-slate-900">Leads — last 14 days</p>
+            {chartDays && (
+              <p className="text-xs text-slate-400">
+                {chartDays.reduce((s, d) => s + d.count, 0)} total
+              </p>
+            )}
           </div>
+          {loading ? (
+            <ChartSkeleton />
+          ) : chartDays?.length ? (
+            <LeadsChart days={chartDays} />
+          ) : (
+            <div className="flex items-center justify-center" style={{ height: 180 }}>
+              <p className="text-sm text-slate-400">No leads yet — share your number to get started.</p>
+            </div>
+          )}
         </div>
         <StatusPanel />
       </div>

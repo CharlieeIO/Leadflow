@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { StatusFilter } from '@/components/leads/status-filter'
 import { formatPhone, timeAgo, cn } from '@/lib/utils'
-import type { LeadStatus } from '@/types'
+import type { LeadStatus, LeadMetadata } from '@/types'
 
 const STATUS_COLORS: Record<string, string> = {
   new:        'bg-blue-50 text-blue-700',
@@ -51,7 +51,7 @@ export default async function LeadsPage({
   // Build query — filter by status if provided
   let query = supabase
     .from('leads')
-    .select('id, name, phone, status, language, source, last_contact, created_at, ai_paused')
+    .select('id, name, phone, status, language, source, last_contact, created_at, ai_paused, metadata')
     .eq('business_id', business.id)
     .order('last_contact', { ascending: false, nullsFirst: false })
     .limit(100)
@@ -94,9 +94,14 @@ export default async function LeadsPage({
 
       {/* Lead list */}
       {!leads?.length ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-          <p className="text-slate-500 text-sm">
-            {status ? `No ${status} leads yet.` : 'No leads yet. They\'ll appear here as they come in.'}
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center space-y-2">
+          <p className="text-slate-700 font-medium text-sm">
+            {status ? `No ${status} leads` : 'No leads yet'}
+          </p>
+          <p className="text-slate-400 text-xs">
+            {status
+              ? 'Try a different filter to see other leads.'
+              : 'Leads appear here the moment someone texts your Twilio number.'}
           </p>
         </div>
       ) : (
@@ -104,6 +109,14 @@ export default async function LeadsPage({
           {leads.map((lead) => {
             const lastMsg = lastMsgByLead.get(lead.id)
             const displayName = lead.name ?? formatPhone(lead.phone)
+            const grade = ((lead.metadata ?? {}) as LeadMetadata).grade
+
+            const GRADE_COLORS: Record<string, string> = {
+              A: 'bg-green-50 text-green-700',
+              B: 'bg-blue-50 text-blue-700',
+              C: 'bg-amber-50 text-amber-700',
+              D: 'bg-red-50 text-red-600',
+            }
 
             return (
               <Link
@@ -135,16 +148,23 @@ export default async function LeadsPage({
                   </p>
                 </div>
 
-                {/* Right side: status + time */}
+                {/* Right side: grade + status + time */}
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <span
-                    className={cn(
-                      'text-xs font-medium px-2 py-0.5 rounded-full capitalize',
-                      STATUS_COLORS[lead.status as LeadStatus] ?? 'bg-slate-100 text-slate-500',
+                  <div className="flex items-center gap-1.5">
+                    {grade && (
+                      <span className={cn('text-xs font-bold px-1.5 py-0.5 rounded', GRADE_COLORS[grade] ?? 'bg-slate-100 text-slate-500')}>
+                        {grade}
+                      </span>
                     )}
-                  >
-                    {lead.status.replace('_', ' ')}
-                  </span>
+                    <span
+                      className={cn(
+                        'text-xs font-medium px-2 py-0.5 rounded-full capitalize',
+                        STATUS_COLORS[lead.status as LeadStatus] ?? 'bg-slate-100 text-slate-500',
+                      )}
+                    >
+                      {lead.status.replace('_', ' ')}
+                    </span>
+                  </div>
                   <span className="text-xs text-slate-400">
                     {lead.last_contact ? timeAgo(lead.last_contact) : timeAgo(lead.created_at)}
                   </span>

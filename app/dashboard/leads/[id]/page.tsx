@@ -163,14 +163,30 @@ export default async function LeadDetailPage({
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
           <h3 className="text-sm font-semibold text-slate-900">Details</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-slate-500">Language</span>
               <span className="text-slate-700 uppercase">{lead.language}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Score</span>
-              <span className="text-slate-700">{lead.score ?? 0}</span>
-            </div>
+            {meta.grade && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">AI Grade</span>
+                <span className={cn(
+                  'text-xs font-bold px-2 py-0.5 rounded',
+                  meta.grade === 'A' ? 'bg-green-50 text-green-700' :
+                  meta.grade === 'B' ? 'bg-blue-50 text-blue-700' :
+                  meta.grade === 'C' ? 'bg-amber-50 text-amber-700' :
+                  'bg-red-50 text-red-600'
+                )}>
+                  {meta.grade}
+                </span>
+              </div>
+            )}
+            {lead.service_type && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Service</span>
+                <span className="text-slate-700 text-right max-w-[60%] truncate capitalize">{lead.service_type}</span>
+              </div>
+            )}
             {lead.last_contact && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Last contact</span>
