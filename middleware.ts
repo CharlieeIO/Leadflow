@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 // Public paths that don't require authentication
 const PUBLIC_PREFIXES = [
+  '/(auth)',
   '/login',
   '/auth',
   '/api/webhooks',
@@ -39,8 +40,11 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
+  // Next.js route groups like (auth) don't appear in the URL — check the actual URL paths
   const isPublic =
     pathname === '/' ||
+    pathname === '/login' ||
+    pathname.startsWith('/auth') ||
     PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))
 
   if (!user && !isPublic) {
