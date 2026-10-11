@@ -99,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let twilioNumber: string | null = null
   if (data.provision_twilio) {
     try {
-      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.leadflow.ai'
+      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.theleadflowautomation.com'
       twilioNumber = await provisionTwilioNumber({
         businessId: 'pending', // will update after insert
         areaCode: data.area_code,
