@@ -4,6 +4,7 @@ import { checkEscalation } from './escalation'
 import { buildSystemPrompt } from './prompts'
 import { getSupabaseServiceClient } from '@/lib/supabase/server'
 import { getResend } from '@/lib/resend/client'
+import { sendSMS } from '@/lib/twilio/sender'
 import { leadBriefHtml } from '@/lib/resend/templates'
 import { fireCrmWebhook } from '@/lib/crm/outbound'
 import { logger } from '@/lib/logger'
@@ -381,9 +382,39 @@ Rules:
         : lead.service_type,
     }
 
-    // ── Fire lead brief email to owner (non-blocking) ─────────────────────────
-    // Only send when we have enough to say something meaningful (grade set)
-    if (extracted.grade && settings.notification_email) {
+    // ── Fire owner notifications (once per new lead, after extraction) ──────────
+    // Only fires on the first message (lead.status === 'new') so the owner isn't
+    // spammed on every reply. SMS is the primary notification (immediate, phone).
+    // Email carries the full brief including conversation history.
+    if (extracted.grade && lead.status === 'new') {
+      const notifyPhone = settings.notification_phone
+      const fromNumber = (business as Business & { twilio_number?: string }).twilio_number
+
+      if (notifyPhone && fromNumber) {
+        const name = updatedLead.name ?? lead.phone
+        const svcLine = extracted.service_type && extracted.service_type !== 'unknown'
+          ? `${extracted.service_type}${extracted.urgency === 'urgent' ? ' • URGENT' : ''}`
+          : extracted.issue_description?.slice(0, 60) ?? 'new inquiry'
+        const smsBody = `LeadFlow [${extracted.grade}] ${name}\n${svcLine}\nAI is responding — check dashboard`
+
+        void sendSMS({
+          to: notifyPhone,
+          from: fromNumber,
+          body: smsBody,
+          business_id: business.id,
+          lead_id: leadId,
+        }).catch(() => {})
+      }
+
+      if (settings.notification_email) {
+        void sendLeadBriefEmail({
+          business,
+          lead: updatedLead,
+          meta: newMeta,
+        })
+      }
+    } else if (extracted.grade && settings.notification_email && lead.status !== 'new') {
+      // For returning leads that get re-graded, still send the email brief
       void sendLeadBriefEmail({
         business,
         lead: updatedLead,

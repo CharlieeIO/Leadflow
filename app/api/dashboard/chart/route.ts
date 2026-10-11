@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getSupabaseServerClient } from '@/lib/supabase/server'
+import { unstable_cache } from 'next/cache'
+import { getSupabaseServerClient, getSupabaseServiceClient } from '@/lib/supabase/server'
 
 // GET /api/dashboard/chart
 // Returns daily lead counts for the last 14 days.
@@ -19,27 +20,36 @@ export async function GET(): Promise<NextResponse> {
 
   if (!business) return NextResponse.json({ days: [] })
 
-  const start = new Date()
-  start.setDate(start.getDate() - 13)
-  start.setHours(0, 0, 0, 0)
-
-  const { data: leads } = await supabase
-    .from('leads')
-    .select('created_at')
-    .eq('business_id', business.id)
-    .gte('created_at', start.toISOString())
-
-  const counts = new Map<string, number>()
-  for (const lead of leads ?? []) {
-    const date = new Date(lead.created_at).toISOString().slice(0, 10)
-    counts.set(date, (counts.get(date) ?? 0) + 1)
-  }
-
-  const days = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(start.getTime() + i * 86400000)
-    const date = d.toISOString().slice(0, 10)
-    return { date, count: counts.get(date) ?? 0 }
-  })
-
+  const days = await getCachedChart(business.id)
   return NextResponse.json({ days })
 }
+
+const getCachedChart = unstable_cache(
+  async (businessId: string) => {
+    const supabase = getSupabaseServiceClient()
+
+    const start = new Date()
+    start.setDate(start.getDate() - 13)
+    start.setHours(0, 0, 0, 0)
+
+    const { data: leads } = await supabase
+      .from('leads')
+      .select('created_at')
+      .eq('business_id', businessId)
+      .gte('created_at', start.toISOString())
+
+    const counts = new Map<string, number>()
+    for (const lead of leads ?? []) {
+      const date = new Date(lead.created_at).toISOString().slice(0, 10)
+      counts.set(date, (counts.get(date) ?? 0) + 1)
+    }
+
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(start.getTime() + i * 86400000)
+      const date = d.toISOString().slice(0, 10)
+      return { date, count: counts.get(date) ?? 0 }
+    })
+  },
+  ['dashboard-chart'],
+  { revalidate: 30 },
+)
