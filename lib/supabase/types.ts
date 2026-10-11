@@ -20,6 +20,8 @@ export interface Database {
           name: string
           niche: string
           twilio_number: string | null
+          twilio_account_sid: string | null
+          twilio_auth_token: string | null
           retell_agent_id: string | null
           cal_event_type_id: string | null
           settings: Json
@@ -33,6 +35,8 @@ export interface Database {
           name: string
           niche: string
           twilio_number?: string | null
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
           retell_agent_id?: string | null
           cal_event_type_id?: string | null
           settings?: Json
@@ -46,6 +50,8 @@ export interface Database {
           name?: string
           niche?: string
           twilio_number?: string | null
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
           retell_agent_id?: string | null
           cal_event_type_id?: string | null
           settings?: Json
