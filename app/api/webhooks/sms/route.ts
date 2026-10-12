@@ -248,6 +248,13 @@ async function processInbound({
       .from('leads')
       .update({ last_contact: new Date().toISOString(), status: 'contacted' })
       .eq('id', lead.id)
+    // Notify owner of new lead on first contact
+    void notifyOwner({
+      business,
+      lead,
+      message: body.trim(),
+      type: 'new_lead',
+    })
   } else {
     void supabase
       .from('leads')
