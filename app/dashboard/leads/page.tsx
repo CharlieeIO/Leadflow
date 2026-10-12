@@ -87,9 +87,20 @@ export default async function LeadsPage({
         <Suspense fallback={<div className="h-9 w-64 bg-slate-100 rounded-lg animate-pulse" />}>
           <StatusFilter />
         </Suspense>
-        <p className="text-sm text-slate-500">
-          {leads?.length ?? 0} lead{leads?.length !== 1 ? 's' : ''}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-slate-500">
+            {leads?.length ?? 0} lead{leads?.length !== 1 ? 's' : ''}
+          </p>
+          <a
+            href="/api/leads/export"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M8 1v9m0 0L5 7m3 3 3-3M1 12v1.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V12" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Export CSV
+          </a>
+        </div>
       </div>
 
       {/* Lead list */}

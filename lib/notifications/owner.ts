@@ -1,4 +1,5 @@
 import { sendSMS } from '@/lib/twilio/sender'
+import { sendPushNotification, type PushSubscription } from '@/lib/push/sender'
 import { logger } from '@/lib/logger'
 import type { NotifyOwnerOptions, BusinessSettings } from '@/types'
 
@@ -119,6 +120,29 @@ export async function notifyOwner(options: NotifyOwnerOptions): Promise<void> {
             error: String(err),
           })
         }),
+    )
+  }
+
+  // ── Push notification ───────────────────────────────────────────────────────
+  const pushSubs = (settings as Record<string, unknown>).push_subscriptions as PushSubscription[] | undefined
+  if (pushSubs?.length) {
+    const pushTitle =
+      options.type === 'new_lead'   ? '🔔 New Lead'   :
+      options.type === 'booking'    ? '✅ New Booking' :
+      options.type === 'escalation' ? '⚠️ Escalation'  :
+      options.type === 'missed_call'? '📞 Missed Call' :
+      options.type === 'no_show'    ? '❌ No Show'     :
+      business.name
+
+    promises.push(
+      sendPushNotification({
+        subscriptions: pushSubs,
+        title: pushTitle,
+        body: message,
+        url: `/dashboard/leads/${lead.id}`,
+      }).catch((err: unknown) => {
+        logger.error('owner_notify_push_failed', { business_id: business.id, error: String(err) })
+      })
     )
   }
 

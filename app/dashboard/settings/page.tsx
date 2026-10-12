@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import type { Business, BusinessSettings } from '@/types'
 
@@ -37,6 +37,54 @@ export default function SettingsPage() {
   const [saving, setSaving]   = useState(false)
   const [saved, setSaved]     = useState(false)
   const [error, setError]     = useState('')
+
+  // Push notifications
+  const [pushSupported, setPushSupported]   = useState(false)
+  const [pushEnabled, setPushEnabled]       = useState(false)
+  const [pushLoading, setPushLoading]       = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+      setPushSupported(true)
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.pushManager.getSubscription().then((sub) => {
+          setPushEnabled(!!sub)
+        })
+      })
+    }
+  }, [])
+
+  const togglePush = useCallback(async () => {
+    setPushLoading(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+
+      if (existing) {
+        await existing.unsubscribe()
+        await fetch('/api/push/subscribe', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: existing.endpoint }) })
+        setPushEnabled(false)
+      } else {
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        if (!vapidKey) { setPushLoading(false); return }
+
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidKey,
+        })
+
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub.toJSON()),
+        })
+        setPushEnabled(true)
+      }
+    } catch {
+      // Permission denied or not supported
+    }
+    setPushLoading(false)
+  }, [])
 
   useEffect(() => {
     fetch('/api/settings')
@@ -291,6 +339,37 @@ export default function SettingsPage() {
           />
         </Field>
       </section>
+
+      {/* Push notifications */}
+      {pushSupported && (
+        <section className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Push notifications</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Get instant alerts on this device for new leads and bookings.</p>
+            </div>
+            <button
+              type="button"
+              onClick={togglePush}
+              disabled={pushLoading}
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+                'transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+                pushEnabled ? 'bg-blue-600' : 'bg-slate-200',
+                pushLoading && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              <span
+                className={cn(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0',
+                  'transition duration-200 ease-in-out',
+                  pushEnabled ? 'translate-x-5' : 'translate-x-0',
+                )}
+              />
+            </button>
+          </div>
+        </section>
+      )}
 
       <div className="flex items-center gap-3 pb-8">
         <button

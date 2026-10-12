@@ -52,6 +52,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return twimlResponse(400)
   }
 
+  // ── STOP / opt-out handling ───────────────────────────────────────────────────
+  // Legal requirement: honour STOP family keywords immediately, before any AI processing.
+  const OPT_OUT_KEYWORDS  = /^(STOP|STOPALL|UNSUBSCRIBE|CANCEL|END|QUIT)$/i
+  const OPT_IN_KEYWORDS   = /^(START|YES|UNSTOP)$/i
+  const trimmedBody = body.trim()
+
   const supabase = getSupabaseServiceClient()
 
   // ── Look up business by its Twilio number ────────────────────────────────────
@@ -66,6 +72,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (bizError || !business) {
     logger.warn('sms_webhook_unknown_number', { to })
     return twimlResponse() // ack Twilio, ignore unknown number
+  }
+
+  // Handle opt-out/opt-in after business is resolved so we can update the lead
+  if (OPT_OUT_KEYWORDS.test(trimmedBody) || OPT_IN_KEYWORDS.test(trimmedBody)) {
+    const isOptOut = OPT_OUT_KEYWORDS.test(trimmedBody)
+    await supabase
+      .from('leads')
+      .update({
+        status: isOptOut ? 'opted_out' : 'new',
+        ai_paused: isOptOut,
+        last_contact: new Date().toISOString(),
+      })
+      .eq('phone', from)
+      .eq('business_id', business.id)
+
+    logger.info(isOptOut ? 'lead_opted_out' : 'lead_opted_in', { from, business_id: business.id })
+    return twimlResponse() // Twilio handles the STOP reply automatically
   }
 
   // ── Validate Twilio signature using the right auth token for this business ────
