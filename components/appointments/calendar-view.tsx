@@ -1,11 +1,75 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, User, Link2, Copy, Check, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CalAppointment } from '@/app/dashboard/appointments/page'
 import type { AppointmentStatus } from '@/types'
 import Link from 'next/link'
+
+const WEBHOOK_URL = 'https://www.theleadflowautomation.com/api/webhooks/cal'
+
+function CalIntegrationCard() {
+  const [copied, setCopied] = useState(false)
+
+  function copy() {
+    navigator.clipboard.writeText(WEBHOOK_URL).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+          <Link2 size={15} className="text-white" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Connect Cal.com</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Bookings will appear here automatically once the webhook is configured.</p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs font-medium text-slate-700 mb-1.5">Step 1 — Add webhook in Cal.com</p>
+          <div className="flex items-center gap-2 bg-white border border-blue-200 rounded-lg px-3 py-2">
+            <code className="text-xs text-slate-600 flex-1 truncate">{WEBHOOK_URL}</code>
+            <button
+              onClick={copy}
+              className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors"
+            >
+              {copied ? <Check size={13} className="text-green-600" /> : <Copy size={13} className="text-slate-400" />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-slate-700 mb-1">Step 2 — Select these events</p>
+          <div className="flex flex-wrap gap-1.5">
+            {['BOOKING_CREATED', 'BOOKING_CANCELLED', 'BOOKING_RESCHEDULED'].map((e) => (
+              <span key={e} className="text-xs bg-white border border-blue-200 text-slate-600 px-2 py-0.5 rounded-full">{e}</span>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-slate-700 mb-1">Step 3 — Connect your calendar in Cal.com</p>
+          <p className="text-xs text-slate-500">Cal.com → Settings → Calendars → Connect Google or Apple Calendar. Every booking will sync automatically.</p>
+        </div>
+
+        <a
+          href="https://cal.com/settings/developer/webhooks"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+        >
+          Open Cal.com Webhooks <ExternalLink size={11} />
+        </a>
+      </div>
+    </div>
+  )
+}
 
 const STATUS_PILL: Record<AppointmentStatus, string> = {
   pending:   'bg-blue-100 text-blue-700',
@@ -76,6 +140,9 @@ export function CalendarView({ appointments }: { appointments: CalAppointment[] 
 
   return (
     <div className="space-y-6">
+      {/* Cal.com integration setup — shown until appointments exist */}
+      {appointments.length === 0 && <CalIntegrationCard />}
+
       {/* Header stats */}
       <div className="grid grid-cols-3 gap-4">
         {[

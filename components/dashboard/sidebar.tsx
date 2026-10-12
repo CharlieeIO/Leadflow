@@ -12,7 +12,6 @@ import {
   Zap,
   X,
   Menu,
-  CreditCard,
   Bot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,7 +21,6 @@ const NAV_ITEMS = [
   { href: '/dashboard/leads',        label: 'Leads',        icon: Users,           exact: false },
   { href: '/dashboard/appointments', label: 'Calendar',     icon: Calendar,        exact: false },
   { href: '/dashboard/ai-console',   label: 'AI Console',   icon: Bot,             exact: false },
-  { href: '/dashboard/billing',      label: 'Billing',      icon: CreditCard,      exact: false },
   { href: '/dashboard/settings',     label: 'Settings',     icon: Settings,        exact: false },
 ]
 
