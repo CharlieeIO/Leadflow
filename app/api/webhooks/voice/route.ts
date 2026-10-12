@@ -41,9 +41,9 @@ function missedCallTwiml(businessName: string): string {
 async function parseFormBody(request: NextRequest): Promise<Record<string, string>> {
   const text = await request.text()
   const params: Record<string, string> = {}
-  for (const pair of text.split('&')) {
-    const [k, v] = pair.split('=')
-    if (k) params[decodeURIComponent(k)] = decodeURIComponent(v ?? '').replace(/\+/g, ' ')
+  const usp = new URLSearchParams(text)
+  for (const [k, v] of usp.entries()) {
+    params[k] = v
   }
   return params
 }
